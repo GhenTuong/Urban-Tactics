@@ -1,0 +1,5 @@
+<w>
+	<file name="ui\urban_tactics\ui_vehicle_wheel">
+	    <texture id="ui_vehicle_wheel" x="0" y="0" width="128" height="128" />
+	</file>
+</w>

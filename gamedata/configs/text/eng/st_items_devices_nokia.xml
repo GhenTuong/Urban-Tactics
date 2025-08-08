@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="windows-1251"?>
+
+<string_table>
+	<string id="st_dev_nokia">
+		<text>Nokia 5110</text>
+	</string>
+	<string id="st_dev_nokia_s">
+		<text>Nokia</text>
+	</string>
+	<string id="st_dev_nokia_descr">
+		<text>
+            The Nokia 5110 is a GSM mobile phone that was introduced by Nokia on 12 April 1998. Featuring an 84x48-pixel monochrome LCD with four LED backlights and replaceable faceplates, the Nokia 5110 was discontinued by the year 2000. Its primary selling points were long battery life and ease of use, made possible by the Navi-key control scheme and a new user interface. Although replaced long ago by newer technologies, this phone is still used as a remote controller for improvised explosives.\n \n
+			%c[ui_gray_3]PROPERTIES:\n
+			%c[d_blue] • %c[ui_gray_2] technological item\n
+			%c[d_blue] • %c[ui_gray_2] low electric power consumption\n
+		</text>
+	</string>	
+</string_table>

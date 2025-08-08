@@ -1,0 +1,85 @@
+;;====================================================================================================================;;
+;;                                                                                                                    ;;
+;;    Original Author(s) : Medialuna                                                                                  ;;
+;;    Edited : Custom 3D UI definition (NLTP_ASHES - 06/08/2025)                                                      ;;
+;;    Date : 06/08/2025                                                                                               ;;
+;;    License : Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)             ;;
+;;                                                                                                                    ;;
+;;    Config file used to define the Nokia 5110.                                                                      ;;
+;;                                                                                                                    ;;
+;;====================================================================================================================;;
+
+; is all that text really needed?
+
+[device_nokia]:tch_detector
+GroupControlSection           = spawn_group
+$spawn                       = "devices\nokia"
+$prefetch                    = 32
+class                        = D_CUSTOM
+cform                        = skeleton
+
+icons_texture                = ui\ui_dev_nokia
+inv_grid_width               = 2
+inv_grid_height              = 1
+inv_grid_x                   = 0
+inv_grid_y                   = 0
+
+upgr_icon_path               = ui\ui_dev_nokia
+upgr_icon_x                  = 0
+upgr_icon_y                  = 0
+upgr_icon_width              = 100
+upgr_icon_height             = 50
+
+visual                       = dynamics\devices\dev_nokia\dev_nokia.ogf
+hud                          = device_nokia_hud
+animation_slot               = 7
+inv_name                     = st_dev_nokia
+inv_name_short               = st_dev_nokia_s
+description                  = st_dev_nokia_descr
+slot                         = 8
+ef_detector_type             = 1
+inv_weight                   = 0.37
+inv_weight                   = 0.17
+cost                         = 1400
+default_to_ruck              = true
+attach_angle_offset          = -1.303,-1.493,-1.202
+attach_position_offset       = 0.110,-0.019,0.000
+attach_bone_name             = bip01_l_hand
+snd_draw                     = weapons\detector\detector_8_draw
+snd_holster                  = weapons\detector\detector_8_holster
+
+custom_ui_pos                = 0.007624, 0.004047, -0.009372
+custom_ui_rot                = 0, 90, 0
+custom_ui_func               = ui_phone_nokia.get_ui
+custom_ui_bone               = screen
+
+
+[device_nokia_hud]:detector_base_hud
+attach_place_idx                                       = 1
+
+item_visual                                            = dynamics\devices\dev_nokia\dev_nokia_hud
+lh_lead_gun                                            = true
+
+item_orientation                 = 0, 0, 0
+item_position                    = 0, 0, 0
+
+aim_hud_offset_pos         		= 0, 0, 0
+aim_hud_offset_pos_16x9			= 0, 0, 0
+aim_hud_offset_rot          	= 0, 0, 0
+aim_hud_offset_rot_16x9     	= 0, 0, 0
+
+hands_orientation                = 0, 0, 0
+hands_orientation_16x9           = 0, 0, 0
+hands_position                   = 0, 0, 0
+hands_position_16x9              = 0, 0, 0
+
+anm_show				 = asnen_hands_draw, nokia_idle
+anm_show_fast				 = asnen_hands_draw, nokia_idle
+anm_hide				 = asnen_hands_hide, nokia_idle
+anm_hide_fast				 = asnen_hands_hide, nokia_idle
+anm_idle				 = asnen_hands_idle, nokia_idle
+anm_idle_moving			         = asnen_hands_walk, nokia_idle
+anm_idle_moving_crouch	                 = asnen_hands_walk, nokia_idle, 0.7
+anm_idle_sprint			         = asnen_hands_sprint, nokia_idle
+
+freelook_z_offset_mul		        = 0.6

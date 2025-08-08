@@ -1,0 +1,417 @@
+--[[
+	GhenTuong
+	Discord: GhenTuong#1278
+	Twitter: https://twitter.com/GhenTuong
+--]]
+
+function DEBUG(str,...)
+	local func = debug.getinfo(2,"S").source
+	local line = debug.getinfo(2,"l").currentline
+	func = string.sub(func,#func - string.find(string.reverse(func),"\\") + 2,#func)
+	local p = {...}
+	if (p and (#p ~= 0)) then
+		printf(string.format("[GhenTuong] %s:%s | %s",tostring(func),tostring(line),str),...)
+	else
+		printf(string.format("[GhenTuong] %s:%s | ",tostring(func),tostring(line)) .. "%s",str)
+	end
+end
+
+VISIBILITY_REDUCE_COEFFICIENT = 0.1
+
+--[[----------------------------------------------------------------------------------------------------
+	Main
+------------------------------------------------------------------------------------------------------]]
+local SMOKE_STORAGE = {}
+
+smoke_objects = {}
+
+function add_binded_object(obj)
+	smoke_objects[obj:id()] = obj
+end
+
+function del_binded_object(obj)
+	smoke_objects[obj:id()] = nil
+end
+
+function on_explode(obj)
+	local sec = SYS_GetParam(0,obj:section(),"on_explode_spawn")
+	if (sec and ini_sys:section_exist(sec)) then
+		local pos = obj:center():add(vector():set(0,0.1,0))
+		local vid = obj:level_vertex_id()
+		local gid = obj:game_vertex_id()
+		local se = alife_create(sec,pos,vid,gid)
+		if (se) then
+			se.angle = obj:angle()
+		end
+	end
+end
+
+function IsValidMonster(o)
+    local c = o:clsid()
+    return c == clsid.burer
+    or c == clsid.burer_s
+    or c == clsid.controller
+    or c == clsid.controller_s
+end
+
+function get_npc_pos(npc)
+    return utils_obj.safe_bone_pos(npc,"bip01_spine") or npc:position():add(vector():set(0,1,0))
+end
+
+function get_npc_eye(npc)
+    return utils_obj.safe_bone_pos(npc,"bip01_head") or npc:position():add(vector():set(0,1,0))
+end
+
+function is_point_inside_cylinder(geo,pos)
+	--[[
+	Cylinder equation:
+		(x - x0)^2 + (z - z0)^2 < radius^2
+		y < y0 + height / 2
+		y > y0 - height / 2
+	--]]
+	if not (geo.center and geo.radius and geo.height and pos) then
+		return false
+	end
+	
+	if not (math.pow(pos.x - geo.center.x,2) + math.pow(pos.z - geo.center.z,2) < math.pow(geo.radius,2)) then
+		return false
+	end
+	
+	local half_height = geo.height / 2
+	if not (pos.y < geo.center.y + half_height) then
+		return false
+	end
+	if not (pos.y > geo.center.y - half_height) then
+		return false
+	end
+	
+	return true
+end
+
+function is_smoke_conceal_target(obj,npc,who)
+	--[[
+	Smoke screen is a cylinder with:
+		center, radius, height
+	--]]
+	local mgr = obj:binded_object()
+	if not (mgr and mgr:IsActive()) then
+		return false
+	end
+	
+	local geo = mgr:GetGeometry()
+	if not (geo) then
+		return false
+	end
+	
+    local npc_pos = get_npc_eye(npc)
+    local who_pos = get_npc_pos(who)
+	local smk_pos = vector():set(geo.center)
+	
+	local dst_npc_to_who = npc_pos:distance_to(who_pos)
+	local dst_npc_to_smk = npc_pos:distance_to(smk_pos)
+	
+	if (dst_npc_to_who < geo.radius) then
+		-- npc too close to who.
+		return false
+	end
+	
+	if (dst_npc_to_who + geo.radius < dst_npc_to_smk) then
+		-- Distance from npc to who plus smoke radius must be farther than to smoke.
+		return false
+	end
+	
+	if (is_point_inside_cylinder(geo,npc_pos)) then
+		-- npc inside smoke.
+		return true
+	end
+	if (is_point_inside_cylinder(geo,who_pos)) then
+		-- who inside smoke.
+		return true
+	end
+	
+	--[[
+	Might be inaccurate at some extreme angles at corners.
+	But reliable 95%. No one would notice.
+	--]]
+	local dir = vector():set(smk_pos):sub(npc_pos):normalize()
+	local pos = vector():mad(npc_pos,dir,math.min(dst_npc_to_who,dst_npc_to_smk))
+	if (is_point_inside_cylinder(geo,pos)) then
+		return true
+	end
+	
+	return false
+end
+
+f_get_visible_value = nil
+function get_visible_value(npc,who,time_delta,time_quant,luminocity,velocity_factor,velocity,distance,object_distance,always_visible_distance)
+	local res = f_get_visible_value(npc,who,time_delta,time_quant,luminocity,velocity_factor,velocity,distance,object_distance,always_visible_distance)
+	
+	if not (npc and (IsStalker(npc) or IsMonster(npc))) then
+		return res
+	end
+	if not (who and (IsStalker(who) or IsMonster(who))) then
+		return res
+	end
+	
+	for _,obj in pairs(smoke_objects) do
+		if (is_smoke_conceal_target(obj,npc,who)) then
+			res = -VISIBILITY_REDUCE_COEFFICIENT
+			--DEBUG("Smoke [%s] -> [%s] X [%s]",npc:name(),who:name(),obj:name())
+			break
+		end
+	end
+	
+    return res
+end
+
+function overrides()
+	f_get_visible_value = visual_memory_manager.get_visible_value
+	visual_memory_manager.get_visible_value = get_visible_value
+	--[[
+	local lst = {
+		"killer_veteran_extra",
+		"killer_master_extra",
+		"freedom_veteran_extra",
+		"freedom_master_extra",
+		"isg_veteran_extra",
+		"isg_master_extra",
+		"army_master_extra",
+		"dolg_master_extra",
+		"ecolog_master_extra"
+	}
+	local ini = ini_file("items\\settings\\npc_loadouts\\npc_loadouts.ltx")
+	for _,s in pairs(lst) do
+		local n = ini:line_count(s)
+		for k=0,n-1 do
+			local r,i,v = ini:r_line_ex(s,k)
+			if (i) then
+				DEBUG("%s %s",s,i)
+			end
+		end
+	end
+	--]]
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Binder
+------------------------------------------------------------------------------------------------------]]
+function init(obj)
+	obj:bind_object(CSmokeBinder(obj))
+end
+
+class "CSmokeBinder" (object_binder)
+function CSmokeBinder:__init(obj) super(obj)
+	db.storage[self.object:id()] = {}
+	self.oid = self.object:id()
+	local section = self.object:section()
+	
+	self.duration	= SYS_GetParam(2,section,"duration",0) * 1000
+	self.end_effect	= SYS_GetParam(2,section,"duration_end_effect",0) * 1000
+	
+	self.snd_name	= SYS_GetParam(0,section,"snd_name")
+	self.snd		= self.snd_name and sound_object(self.snd_name)
+	
+	self.ptc_name	= SYS_GetParam(0,section,"ptc_name")
+	self.ptc		= self.ptc_name and particles_object(self.ptc_name)
+	
+	self.center		= SYS_GetParam(2,section,"center") or 0
+	self.radius		= SYS_GetParam(2,section,"radius") or 4
+	self.height		= SYS_GetParam(2,section,"height") or 4
+	
+	self.physic		= false
+	
+	self.fc_delta = nil
+	self.fc_timer = nil
+	self.fc_delay = 50
+	self.object:set_fastcall(self.update,self)
+end
+
+function CSmokeBinder:reload(section)
+	object_binder.reload(self,section)
+end
+
+function CSmokeBinder:reinit()
+	object_binder.reinit(self)
+	db.storage[self.object:id()] = db.storage[self.object:id()] or {}
+	self.st = db.storage[self.object:id()]
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Update
+------------------------------------------------------------------------------------------------------]]
+function CSmokeBinder:update(delta)
+	object_binder.update(self,delta)
+	local t = time_global()
+	if (self.fc_timer and (self.fc_timer > t)) then
+		return
+	end
+	self.fc_delta = self.fc_timer and (t - self.fc_timer + self.fc_delay) or 0
+	self.fc_timer = t + self.fc_delay
+	
+	if (SMOKE_STORAGE[self.oid] == nil) then
+		SMOKE_STORAGE[self.oid] = self.duration
+	end
+	
+	SMOKE_STORAGE[self.oid] = math.max(0,SMOKE_STORAGE[self.oid] - self.fc_delta)
+	if (SMOKE_STORAGE[self.oid] == 0) then
+		SMOKE_STORAGE[self.oid] = nil
+		self:Destroy()
+		return
+	end
+	
+	if (self.physic ~= true) then
+		if (self.object:get_physics_shell()) then
+			self.object:get_physics_shell():apply_force(0,0.01,0)
+			self.physic = true
+		end
+	end
+	
+	--DEBUG("[%s]:Update() %s",self.object:name(),SMOKE_STORAGE[self.oid])
+	--DEBUG("[%s]:Update() distance to actor %s",self.object:name(),self.object:position():distance_to(db.actor:position()))
+	self:UpdateSound()
+	self:UpdateParticles()
+end
+
+function CSmokeBinder:UpdateSound()
+	if not (self.snd) then
+		return
+	end
+	
+	--DEBUG("[%s] play sound.",self.object:name())
+	self.snd.volume = math.min(SMOKE_STORAGE[self.oid] / self.end_effect,1)
+	if (self.snd:playing()) then
+		self.snd:set_position(self.object:position())
+	else
+		self.snd:play_at_pos(self.object,self.object:position(),0,(sound_object.s3d))
+	end
+end
+
+function CSmokeBinder:UpdateParticles()
+	if not (self.ptc) then
+		return
+	end
+	
+	--DEBUG("[%s] play particles.",self.object:name())
+	if (SMOKE_STORAGE[self.oid] < self.end_effect) then
+		if (self.ptc:playing()) then
+			self.ptc:stop_deffered()
+		end
+	else
+		self.ptc:move_to(self.object:position(),VEC_ZERO)
+		if (self.ptc:playing() ~= true) then
+			self.ptc:play(false)
+		end
+	end
+end
+
+function CSmokeBinder:Destroy()
+	--DEBUG("[%s] SelfDestroy()",self.object:name())
+	if (self.snd) then
+		self.snd:stop()
+		self.snd = nil
+	end
+	if (self.ptc) then
+		self.ptc:stop()
+		self.ptc = nil
+	end
+	
+	local se = self.object and alife_object(self.object:id())
+	return se and alife_release(se)
+end
+
+function CSmokeBinder:IsActive()
+	local num = self.oid and tonumber(SMOKE_STORAGE[self.oid]) or 0
+	if (num > self.duration - 2000) then
+		-- Haven't deployed enough to cover.
+		return false
+	end
+	if (num < 1000) then
+		-- Smoke have faded enough to be seen through.
+		return false
+	end
+	return true
+end
+
+function CSmokeBinder:GetGeometry()
+	return {
+		center = self.object:position():add(vector():set(0,self.center,0)),
+		radius = self.radius,
+		height = self.height,
+	}
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Schemes
+------------------------------------------------------------------------------------------------------]]
+function CSmokeBinder:net_spawn(se_abstract)
+	if not (object_binder.net_spawn(self,se_abstract)) then
+		return false
+	end
+	db.add_obj(self.object)
+	add_binded_object(self.object)
+	return true
+end
+
+function CSmokeBinder:net_destroy()
+	db.del_obj(self.object)
+	del_binded_object(self.object)
+	object_binder.net_destroy(self)
+end
+
+function CSmokeBinder:net_save_relevant()
+	return true
+end
+
+function CSmokeBinder:save(packet)
+	object_binder.save(self,packet)
+	set_save_marker(packet,"save",false,"physics_binder")
+	xr_logic.save_obj(self.object,packet)
+	set_save_marker(packet,"save",true,"physics_binder")
+end
+
+function CSmokeBinder:load(packet)
+	object_binder.load(self,packet)
+	set_save_marker(packet,"load",false,"physics_binder")
+	xr_logic.load_obj(self.object,packet)
+	set_save_marker(packet,"load",true,"physics_binder")
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Callbacks
+------------------------------------------------------------------------------------------------------]]
+function save_state(m_data)
+	m_data.GT_SMOKE_STORAGE = SMOKE_STORAGE
+end
+
+function load_state(m_data)
+	SMOKE_STORAGE = m_data.GT_SMOKE_STORAGE or {}
+end
+
+function actor_on_first_update()
+	local function function_for_each_object(id)
+		local se = alife_object(id)
+		if not (se) then
+			SMOKE_STORAGE[id] = nil
+			return
+		end
+		if not (simulation_objects.is_on_the_actor_level(se)) then
+			alife_release(se)
+			SMOKE_STORAGE[id] = nil
+		end
+	end
+	
+	for id,_ in pairs(SMOKE_STORAGE) do
+		function_for_each_object(id)
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Registers
+------------------------------------------------------------------------------------------------------]]
+function on_game_start()
+	RegisterScriptCallback("save_state",save_state)
+	RegisterScriptCallback("load_state",load_state)
+	RegisterScriptCallback("actor_on_first_update",actor_on_first_update)
+	
+	overrides()
+end

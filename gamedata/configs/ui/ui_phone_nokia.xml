@@ -1,0 +1,60 @@
+<!--=================================================================================================================-->
+<!--                                                                                                                 -->
+<!--    Original Author(s) : NLTP_ASHES                                                                              -->
+<!--    Edited : N/A                                                                                                 -->
+<!--    Date : 06/08/2025                                                                                            -->
+<!--    License : Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)          -->
+<!--                                                                                                                 -->
+<!--    UI Template for the Nokia 5110 phone.                                                                        -->
+<!--                                                                                                                 -->
+<!--    Note : Since this UI is displayed in the game world, and not on a 2D display, coordinates aren't in pixels.  -->
+<!--                                                                                                                 -->
+<!--=================================================================================================================-->
+<w>
+    <screen>
+        <!-- Signal -->
+        <signal_4     x="0.0000"    y="0.0000"    width="0.0018"    height="0.0030"    stretch="1" />
+        <signal_3     x="0.0000"    y="0.0035"    width="0.0018"    height="0.0030"    stretch="1" />
+        <signal_2     x="0.0000"    y="0.0070"    width="0.0018"    height="0.0030"    stretch="1" />
+        <signal_1     x="0.0000"    y="0.0105"    width="0.0018"    height="0.0030"    stretch="1" />
+        <signal       x="0.0000"    y="0.0140"    width="0.0018"    height="0.0030"    stretch="1" />
+
+        <!-- Battery -->
+        <battery_4    x="0.0275"    y="0.0000"    width="0.0014"    height="0.0030"    stretch="1" />
+        <battery_3    x="0.0275"    y="0.0035"    width="0.0014"    height="0.0030"    stretch="1" />
+        <battery_2    x="0.0275"    y="0.0070"    width="0.0014"    height="0.0030"    stretch="1" />
+        <battery_1    x="0.0275"    y="0.0105"    width="0.0014"    height="0.0030"    stretch="1" />
+        <battery      x="0.0275"    y="0.0140"    width="0.0014"    height="0.0030"    stretch="1" />
+
+        <!-- Phone icon -->
+        <phone        x="0.0026"    y="0.0004"    width="0.0064"    height="0.0021"    stretch="1" />
+
+        <!-- Menu label -->
+        <menu         x="0.0098"    y="0.0170"    width="0.0093"    height="0.0030"    stretch="1" />
+
+        <!-- Time of Day (ToD) -->
+        <time_1       x="0.01785"    y="0.0000"    width="0.001925"    height="0.0026"    stretch="1" />
+        <time_2       x="0.019775"    y="0.0000"    width="0.001925"    height="0.0026"    stretch="1" />
+        <time         x="0.0217"    y="0.0000"    width="0.000875"    height="0.0026"    stretch="1" />
+        <time_3       x="0.022575"    y="0.0000"    width="0.001925"    height="0.0026"    stretch="1" />
+        <time_4       x="0.0245"    y="0.0000"    width="0.001925"    height="0.0026"    stretch="1" />
+
+        <!-- Dial numbers slots -->
+        <dial_slot_1  x="0.0236875"    y="0.0105"    width="0.0030125"    height="0.0048"    stretch="1" />
+        <dial_slot_2  x="0.020675"    y="0.0105"    width="0.0030125"    height="0.0048"    stretch="1" />
+        <dial_slot_3  x="0.0176625"    y="0.0105"    width="0.0030125"    height="0.0048"    stretch="1" />
+        <dial_slot_4  x="0.01465"    y="0.0105"    width="0.0030125"    height="0.0048"    stretch="1" />
+        <dial_slot_5  x="0.0116375"    y="0.0105"    width="0.0030125"    height="0.0048"    stretch="1" />
+        <dial_slot_6  x="0.008625"    y="0.0105"    width="0.0030125"    height="0.0048"    stretch="1" />
+        <dial_slot_7  x="0.0056125"    y="0.0105"    width="0.0030125"    height="0.0048"    stretch="1" />
+        <dial_slot_8  x="0.0026"    y="0.0105"    width="0.0030125"    height="0.0048"    stretch="1" />
+        <dial_slot_9  x="0.0236875"    y="0.0052"    width="0.0030125"    height="0.0048"    stretch="1" />
+        <dial_slot_10  x="0.020675"    y="0.0052"    width="0.0030125"    height="0.0048"    stretch="1" />
+        <dial_slot_11  x="0.0176625"    y="0.0052"    width="0.0030125"    height="0.0048"    stretch="1" />
+        <dial_slot_12  x="0.01465"    y="0.0052"    width="0.0030125"    height="0.0048"    stretch="1" />
+        <dial_slot_13  x="0.0116375"    y="0.0052"    width="0.0030125"    height="0.0048"    stretch="1" />
+        <dial_slot_14  x="0.008625"    y="0.0052"    width="0.0030125"    height="0.0048"    stretch="1" />
+        <dial_slot_15  x="0.0056125"    y="0.0052"    width="0.0030125"    height="0.0048"    stretch="1" />
+        <dial_slot_16  x="0.0026"    y="0.0052"    width="0.0030125"    height="0.0048"    stretch="1" />
+    </screen>
+</w>

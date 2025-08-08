@@ -1,0 +1,122 @@
+[fly_definition]
+body_bone					= body
+drive_bones					= drive_1,drive_2,drive_3,drive_4
+rotor_force_max				= 1000
+rotor_speed_max				= 10
+
+[rotors]
+blade_1						= clockwise:true
+blade_2						= clockwise:false
+blade_3						= clockwise:false
+blade_4						= clockwise:true
+
+[car_definition]
+remote_control				= true
+camera_first				= drone_cam_first
+camera_chase				= drone_cam_chase
+camera_free					= drone_cam_free
+camera_bone_def				= bone_camera
+camera_bone_aim				= bone_camera
+zoom_factor_def				= 1.0
+zoom_factor_aim				= 2.0
+camera_pos					= 0.0,0.4,0.0
+damage						= damage_bones
+
+;----------------------------------------------------------------------------------------------------
+;----------------------------------------------------------------------------------------------------
+fuel_tank         			= 1
+fuel_consumption  			= 0
+engine_power      			= 30         	; horse_power (kW=hp*0.808) max power
+max_power_rpm     			= 4200        	; (nominal rpm ) on this rpm value engine power reaches maximum
+max_torque_rpm    			= 2800       	; on this rpm engine torque reaches maximum
+
+power_increment_factor		= 0.04
+power_decrement_factor		= 0.08
+rpm_increment_factor		= 0.05
+rpm_decrement_factor		= 0.10
+
+max_engine_rpm    			= 5000			; rpm (5000) rpm will never be more
+idling_engine_rpm			= 750       	; rpm (750) min rpm - starts from this rpm value
+
+reference_radius  			= 0.28			; –адиус колеса, используемый при просчЄте двигател¤
+axle_friction     			= 0.01        	; ќслабление скорости в неетральной позиции. (N*m)
+steering_speed    			= 2.5         	; ¬рем¤ поворота рулевого колеса, в максимум. rps (1)
+steering_torque   			= 90000.    	; —ила гидроусилител¤ рул¤. (N*m)
+break_torque      			= 0.02        	; —ила тормозных колодок. (N*m)
+break_time        			= 0.9         	; врем¤ нарастани¤ силы торможени¤ до максимума, при подтормаживании (стрелка назад)
+hand_break_torque 			= 0.02        	; сила торможени¤ пробелом (по умолчанию = break_torque)
+
+main_gear_ratio    			= 4.63         	; ѕередаточное отношение
+auto_transmission  			= on            ; јвтоматическа¤ коробка (on/off)
+
+[transmission_gear_ratio]
+R                  			= 1.0,1000,2000
+N1                 			= 1.0,1000,2000
+N2                 			= 1.0,1000,2000
+N3							= 1.0,1000,2000
+N4							= 1.0,1000,2000
+;----------------------------------------------------------------------------------------------------
+;----------------------------------------------------------------------------------------------------
+[autoremove_parts]
+time						= 120
+
+[destroyed]
+dynamics\vehicles\drone\parts\drone_part_0.ogf
+dynamics\vehicles\drone\parts\drone_part_1.ogf
+dynamics\vehicles\drone\parts\drone_part_2.ogf
+
+[explosion]
+hit_power_critical			= 0.0,0.0,0.0,0.0
+k_hit_critical				= 0
+frag_hit_critical			= 0
+blast						= 0
+blast_r						= 0
+blast_impulse				= 0
+frags		        		= 0
+frags_r						= 0
+frag_hit					= 0
+frag_hit_impulse			= 0
+hit_type_blast				= explosion
+hit_type_frag				= fire_wound
+up_throw_factor				= 0
+wm_size             		= 0.01
+explode_particles			= weapons\generic_weapon05
+light_color					= 0,0,0
+light_range					= 0
+light_time 					= 0
+fragment_speed				= 0
+fragment_tracer_max_length	= 0
+explode_duration    		= 0
+snd_explode 				= $no_sound
+wallmark_section			= explosion_marks
+
+[explode_effector]
+effect_sect_name			= $no_effector
+
+[car_sound]
+snd_volume					= 1.0
+snd_name					= vehicles\drone\drone_engine_idle_01
+engine_sound_start_dellay	= 0
+engine_start				= $no_sound
+engine_stop					= $no_sound
+transmission_switch			= $no_sound
+explosion_sound				= $no_sound
+relative_pos				= 0.0,0.2,0.0
+
+[immunities]
+burn_immunity				= 0
+strike_immunity				= 2
+shock_immunity				= 2
+wound_immunity				= 0
+radiation_immunity			= 0
+telepatic_immunity			= 0
+chemical_burn_immunity		= 0
+explosion_immunity			= 2
+fire_wound_immunity			= 2
+
+[damage_bones]
+default						= 1,-1,0
+
+[air_resistance]
+linear_factor				= 2000
+angular_factor				= 1

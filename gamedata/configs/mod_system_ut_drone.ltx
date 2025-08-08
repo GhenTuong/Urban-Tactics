@@ -1,0 +1,113 @@
+;----------------------------------------------------------------------------------------------------
+;	GhenTuong
+;	Discord: GhenTuong#1278
+;	Twitter: https://twitter.com/GhenTuong
+;	To do:
+;----------------------------------------------------------------------------------------------------
+[m_drone_base]
+GroupControlSection			= spawn_group
+cform						= skeleton
+class						= SCRPTCAR
+kind						= v_drone
+type						= fly
+visual						= dynamics\vehicles\drone\drone.ogf
+use_action_hint				= drone_use_hint
+script_binding				= drone_object.init
+on_before_hit				= drone_object.on_before_hit
+on_before_use				= drone_object.on_before_use
+
+[m_drone_item]:tch_quest
+use1_functor				= drone_gameplay.drone_deploy_desc
+use1_action_functor			= drone_gameplay.drone_deploy_func
+
+;----------------------------------------------------------------------------------------------------
+;	Objects
+;----------------------------------------------------------------------------------------------------
+[handheld_drone_veh]:m_drone_base
+control_neutral				= 1.0
+control_ele_max				= 3.0
+control_yaw_max				= 3.0
+control_pit_max				= 2.0
+control_rol_max				= 2.0
+attachment_bone				= attach_bone
+fly_weight_min				= 20
+
+inv_name					= handheld_drone_name
+inv_name_short				= handheld_drone_name
+description					= handheld_drone_desc
+drone_section_itm			= handheld_drone
+
+[handheld_drone]:m_drone_item
+visual						= dynamics\vehicles\drone\drone.ogf
+inv_name					= handheld_drone_name
+inv_name_short				= handheld_drone_name
+description					= handheld_drone_desc
+icons_texture				= ui\actor_items\ui_icon_drone
+inv_grid_width				= 3
+inv_grid_height				= 2
+inv_grid_x					= 0
+inv_grid_y					= 0
+inv_weight					= 5.0
+attach_angle_offset			= 0.0,0.0,0.0
+attach_position_offset		= 0.0,0.0,0.0
+attach_bone_name			= bip01_l_hand
+can_trade					= true
+cost						= 10000
+tier						= 3
+drone_section_obj			= handheld_drone_veh
+
+[drone_controller]:device_pda_1
+inv_name					= drone_controller_name
+inv_name_short				= drone_controller_name
+description					= drone_controller_desc
+inv_weight					= 0.3
+inv_grid_width				= 1
+inv_grid_height				= 1
+inv_grid_x					= 12
+inv_grid_y					= 28
+cost						= 5000
+slot						= 13
+use1_allow_db				= true
+use1_functor				= drone_controller.menu_desc
+use1_action_functor			= drone_controller.menu_func
+
+;----------------------------------------------------------------------------------------------------
+;	Explosives
+;----------------------------------------------------------------------------------------------------
+![grenade_rgd5]
+attachment_weight			= 5
+
+![grenade_f1]
+attachment_weight			= 5
+
+![grenade_explosive_charge]
+attachment_weight			= 5
+
+![rpg_new_blow]
+attachment_weight			= 10
+
+![ied_new_blow]
+attachment_weight			= 10
+
+;----------------------------------------------------------------------------------------------------
+;	Camera
+;----------------------------------------------------------------------------------------------------
+[drone_cam_first]
+lim_pitch					= -30,85
+lim_yaw						= -0.01,0.01
+lim_deg						= true
+rot_speed					= 3.14,1.0,0
+
+[drone_cam_chase]
+lim_pitch					= -180,180
+lim_yaw						= 0,0
+lim_deg						= true
+lim_zoom					= 1,2
+rot_speed					= 3.14,1.0,0
+
+[drone_cam_free]
+lim_pitch					= -180,180
+lim_yaw						= 0,0
+lim_deg						= true
+lim_zoom					= 1,2
+rot_speed					= 3.14,1.0,0

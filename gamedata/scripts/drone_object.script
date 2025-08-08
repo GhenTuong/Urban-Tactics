@@ -1,0 +1,646 @@
+--[[----------------------------------------------------------------------------------------------------
+	GhenTuong
+	Discord: GhenTuong#1278
+	Twitter: https://twitter.com/GhenTuong
+	To do:
+------------------------------------------------------------------------------------------------------]]
+local GT = game.translate_string
+
+_G.AddScriptCallback("drone_on_net")
+_G.AddScriptCallback("drone_on_death")
+
+function _G.IsDrone(obj,sec)
+	if (obj and IsCar(obj)) then
+		sec = obj.section and obj:section() or obj:section_name()
+	end
+	return sec and (SYS_GetParam(0,sec,"kind") == "v_drone")
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Utilities
+------------------------------------------------------------------------------------------------------]]
+function object_by_id(id)
+	return id and (db.storage[id] and db.storage[id].object or level.object_by_id(id))
+end
+
+function actor_give_item(sec)
+	news_manager.relocate_item(db.actor,"in",sec)
+	alife_create_item(sec,db.actor)
+end
+
+function actor_lost_item(itm)
+	news_manager.relocate_item(db.actor,"out",itm:section())
+	alife_release(itm)
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Storage
+------------------------------------------------------------------------------------------------------]]
+db.drones = {}
+
+function add_drone(obj)
+	db.drones[obj:id()] = obj
+end
+
+function del_drone(obj)
+	db.drones[obj:id()] = nil
+end
+
+db.drones_data_storage = {}
+
+local ACTOR_SAVE_USING_DRONE_ID = nil
+
+function actor_on_first_update()
+	if (ACTOR_SAVE_USING_DRONE_ID) and (db.actor:get_attached_vehicle() == nil) then
+		local obj = object_by_id(ACTOR_SAVE_USING_DRONE_ID)
+		return obj and db.actor:attach_vehicle(obj)
+	end
+end
+
+function server_entity_on_register(se,flag)
+	if not (flag == "se_car") then
+		return
+	end
+	if not (SYS_GetParam(0,se:section_name(),"kind") == "v_drone") then
+		return
+	end
+	if (db.drones_data_storage[se.id] == nil) then
+		db.drones_data_storage[se.id] = {}
+	end
+end
+
+function server_entity_on_unregister(se,flag)
+	if not (flag == "se_car") then
+		return
+	end
+	if not (SYS_GetParam(0,se:section_name(),"kind") == "v_drone") then
+		return
+	end
+	DEBUG("server_entity_on_unregister %s",se:name())
+	db.drones_data_storage[se.id] = nil
+end
+
+function save_state(m_data)
+	DEBUG("save_state")
+	m_data.GT_DRONES_DATA_STORAGE = db.drones_data_storage
+end
+
+function load_state(m_data)
+	db.drones_data_storage = m_data.GT_DRONES_DATA_STORAGE or {}
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Main
+------------------------------------------------------------------------------------------------------]]
+--[[
+Implement inventory for CCar.
+Make attachments inventory items instead.
+Then transfer item in and out of CCar. And store item id.
+--]]
+DRONE_ATTACHMENT_ITEMS = {
+	{sec = "grenade_rgd5",explosive = "grenade_rgd5"},
+	{sec = "grenade_f1",explosive = "grenade_f1"},
+	{sec = "grenade_explosive_charge",explosive = "grenade_explosive_charge"},
+	{sec = "ied_rpg_new",explosive = "rpg_new_blow"},
+	{sec = "ied_new",explosive = "ied_new_blow"},
+}
+
+function get_drone_attachment_index(sec)
+	for i,v in ipairs(DRONE_ATTACHMENT_ITEMS) do
+		if (sec and sec == v.sec) then
+			return i
+		end
+	end
+end
+
+function drone_attach(id,itm,sec)
+	if not (id) then
+		return
+	end
+	local obj = object_by_id(id)
+	local mgr = obj and obj:binded_object()
+	local k = db.drones_data_storage[id]
+	if (k and k.attachment_sec == nil) then
+		if (itm) then
+			itms_manager.play_item_sound(itm,0.75)
+			k.attachment_sec = itm:section()
+			actor_lost_item(itm)
+		elseif (sec) then
+			k.attachment_sec = sec
+		end
+		if (mgr) then
+			mgr:AttachmentUpdate()
+		end
+	end
+end
+
+function drone_detach(id,spawn_item)
+	if not (id) then
+		return
+	end
+	local obj = object_by_id(id)
+	local mgr = obj and obj:binded_object()
+	local k = db.drones_data_storage[id]
+	if (k and k.attachment_sec) then
+		if (spawn_item) then
+			actor_give_item(k.attachment_sec)
+		end
+		k.attachment_sec = nil
+		if (mgr) then
+			mgr:AttachmentUpdate()
+		end
+	end
+end
+
+function drone_pickup(id)
+	local obj = object_by_id(id)
+	local sec = obj and DRONE_MGR:SectionItm(obj:section())
+	if (sec) then
+		drone_detach(id,true)
+		actor_give_item(sec)
+		alife_release(obj)
+	end
+end
+
+function on_before_hit(obj,shit,bone_id)
+	return true
+end
+
+function on_before_use(obj,cam_pos,cam_dir,actor_center)
+	drone_interact_start(obj)
+	return false
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Keys
+------------------------------------------------------------------------------------------------------]]
+KEY_DETONATE_DEF = DIK_keys.DIK_J
+KEY_DETONATE = KEY_DETONATE_DEF
+
+function on_key_press(dik)
+	if (dik == KEY_DETONATE) then
+		local obj = db.actor:get_attached_vehicle()
+		if (IsDrone(obj)) then
+			if (obj:binded_object()) then
+				obj:binded_object():ExplosiveDetonate(db.actor)
+			end
+		end
+	end
+end
+
+--------------------------------------------------------------------------------------------------------
+local DRONE_CONTROLLER_MAX_RANGE = 200
+local DRONE_CONTROLLER_WARNING_PPE = 52000
+
+function drone_controller_warning_ppe_update(flag)
+	if (flag) then
+		level.add_pp_effector("radiation.ppe",DRONE_CONTROLLER_WARNING_PPE,true)
+	else
+		level.remove_pp_effector(DRONE_CONTROLLER_WARNING_PPE)
+	end
+end
+
+function actor_on_update()
+	local obj = db.actor:get_attached_vehicle()
+	if (IsDrone(obj)) then
+		local range = math.pow(DRONE_CONTROLLER_MAX_RANGE * 0.9,2)
+		if (db.actor:position():distance_to_sqr(obj:position()) > range) then
+			drone_controller_warning_ppe_update(true)
+		else
+			drone_controller_warning_ppe_update(false)
+		end
+	end
+end
+
+local drone_script_callback_registered = false
+function actor_on_attach_vehicle(obj)
+	if (IsDrone(obj)) then
+		if (drone_script_callback_registered ~= true) then
+			drone_script_callback_registered = true
+			RegisterScriptCallback("on_key_press",on_key_press)
+			--RegisterScriptCallback("actor_on_update",actor_on_update)
+		end
+	end
+end
+
+function actor_on_detach_vehicle(obj)
+	if (IsDrone(obj)) then
+		if (drone_script_callback_registered == true) then
+			drone_script_callback_registered = false
+			UnregisterScriptCallback("on_key_press",on_key_press)
+			--UnregisterScriptCallback("actor_on_update",actor_on_update)
+			--drone_controller_warning_ppe_update(false)
+		end
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Binder
+------------------------------------------------------------------------------------------------------]]
+function init(obj)
+	obj:bind_object(CDroneBinder(obj))
+end
+
+class "CDroneBinder" (object_binder)
+function CDroneBinder:__init(obj) super(obj)
+	db.storage[self.object:id()] = {}
+	self.oid = self.object:id()
+	self.car = self.object:get_car()
+	self.mdt = db.drones_data_storage[self.oid]
+	
+	self.attachment_bone = SYS_GetParam(0,self.object:section(),"attachment_bone")
+	
+	self.fc_delta = nil
+	self.fc_timer = nil
+	self.fc_delay = 100
+	self.object:set_fastcall(self.update,self)
+end
+
+function CDroneBinder:update(delta)
+	object_binder.update(self,delta)
+	local t = time_global()
+	if (self.fc_timer and (self.fc_timer > t)) then
+		return
+	end
+	self.fc_delta = self.fc_timer and (t - self.fc_timer + self.fc_delay) or 0
+	self.fc_timer = t + self.fc_delay
+end
+
+function CDroneBinder:AttachmentUpdate()
+	local bid = self.attachment_bone and self.object:bone_id(self.attachment_bone)
+	if (bid and bid ~= 65535) then
+		local k = self:AttachmentData()
+		if (k) then
+			if (self.object:get_attachment("payload") == nil) then
+				self.object:add_attachment("payload",k.visual):set_parent_bone(bid)
+				self.car:SetFlyWeightAdd(k.weight)
+			end
+		else
+			if (self.object:get_attachment("payload")) then
+				self.object:remove_attachment("payload")
+				self.car:SetFlyWeightAdd(0)
+			end
+		end
+	else
+		DEBUG("[%s] wrong parameters bone_name:%s bid:%s",self.object:name(),bone_name,bid)
+	end
+end
+
+function CDroneBinder:AttachmentData()
+	local sec = self:ExplosiveSection()
+	if not (sec) then
+		return
+	end
+	local visual = SYS_GetParam(0,sec,"visual")
+	local weight = SYS_GetParam(2,sec,"attachment_weight",0)
+	if not (visual and weight) then
+		return
+	end
+	local t = {}
+	t.visual = visual
+	t.weight = weight
+	return t
+end
+
+function CDroneBinder:CanTakeControl()
+	if not (self.object:alive()) then
+		return false
+	end
+	local d = math.pow(200,2)
+	if not (db.actor:position():distance_to_sqr(self.object:position()) < d) then
+		return false
+	end
+	return true
+end
+
+function CDroneBinder:TakeControl()
+	if (self.object:alive()) then
+		local obj = db.actor:get_attached_vehicle()
+		if (obj) then
+			if (obj:id() == self.oid) then
+				return
+			end
+			db.actor:detach_vehicle(true)
+		end
+		db.actor:attach_vehicle(self.object,true)
+	end
+end
+
+function CDroneBinder:ExplosiveDetonate(who)
+	if (self.object:alive()) then
+		local sec = self:ExplosiveSection()
+		if (sec) then
+			drone_detach(self.oid,false)
+			self.car:LoadExplosiveSection(sec)
+			self.car:SetInitiator(who and who:id() or self.oid)
+			self.object:kill(who)
+			DEBUG("ExplosiveDetonate() %s",time_global())
+		end
+	end
+end
+
+function CDroneBinder:ExplosiveSection()
+	local sec = self.mdt and self.mdt.attachment_sec
+	local idx = sec and get_drone_attachment_index(sec)
+	local tmp = idx and DRONE_ATTACHMENT_ITEMS[idx]
+	return tmp and tmp.explosive
+end
+
+----------------------------------------------------------------------------------------------------
+function CDroneBinder:reload(section)
+	object_binder.reload(self,section)
+end
+
+function CDroneBinder:reinit()
+	object_binder.reinit(self)
+	db.storage[self.object:id()] = db.storage[self.object:id()] or {}
+	self.st = db.storage[self.object:id()]
+end
+
+function CDroneBinder:net_spawn(se_abstract)
+	if not (object_binder.net_spawn(self,se_abstract)) then
+		return false
+	end
+	db.add_obj(self.object)
+	add_drone(self.object)
+	self.object:set_callback(callback.death,CDroneBinder.death_callback,self)
+	self:AttachmentUpdate()
+	
+	if (self.mdt) then
+		if (self.mdt.engine_on) then
+			self.car:StartEngine()
+		end
+	end
+	
+	SendScriptCallback("drone_on_net",self.object,true)
+	return true
+end
+
+function CDroneBinder:net_destroy()
+	DEBUG("net_destroy() %s",time_global())
+	SendScriptCallback("drone_on_net",self.object,false)
+	db.del_obj(self.object)
+	del_drone(self.object)
+	self.object:set_callback(callback.death,nil)
+	object_binder.net_destroy(self)
+end
+
+function CDroneBinder:death_callback(obj,who)
+	SendScriptCallback("drone_on_death",obj,who)
+end
+
+function CDroneBinder:net_save_relevant()
+	return true
+end
+
+function CDroneBinder:save(packet)
+	object_binder.save(self,packet)
+	set_save_marker(packet,"save",false,"physics_binder")
+	set_save_marker(packet,"save",true,"physics_binder")
+	
+	if (self.mdt) then
+		self.mdt.engine_on = self.car:IsActiveEngine()
+	end
+end
+
+function CDroneBinder:load(packet)
+	object_binder.load(self,packet)
+	set_save_marker(packet,"load",false,"physics_binder")
+	set_save_marker(packet,"load",true,"physics_binder")
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Interaction
+UI to take drones, attach/detach items on drones.
+------------------------------------------------------------------------------------------------------]]
+local INTERACT_PICKUP = 0
+local INTERACT_ATTACH = 1
+local INTERACT_DETACH = 2
+
+local COLOR_W = utils_xml.get_color("white",true)
+local COLOR_O = utils_xml.get_color("orange",true)
+
+class "UIDroneInteractAction" (CUIListBoxItem)
+function UIDroneInteractAction:__init(idx,cmd,sec) super(idx,cmd,sec)
+	self.idx = idx
+	self.cmd = cmd
+	self.sec = sec
+	self.is_hightlight = false
+	
+	local txt = self:GetTextItem()
+	txt:SetText("nil")
+	txt:SetEllipsis(true)
+	txt:SetTextColor(COLOR_W)
+	txt:SetWndSize(vector2():set(400,20))
+	
+	if (self.cmd == INTERACT_PICKUP) then
+		txt:SetText(GT("drone_interact_pickup"))
+	end
+	if (self.cmd == INTERACT_ATTACH) then
+		txt:SetText(strformat(GT("drone_interact_attach"),ui_item.get_sec_name(self.sec)))
+	end
+	if (self.cmd == INTERACT_DETACH) then
+		txt:SetText(strformat(GT("drone_interact_detach"),ui_item.get_sec_name(self.sec)))
+	end
+end
+
+function UIDroneInteractAction:SetHightlight(flag)
+	if (flag) then
+		if (self.is_hightlight ~= true) then
+			self.is_hightlight = true
+			self:GetTextItem():SetTextColor(COLOR_O)
+		end
+	else
+		if (self.is_hightlight ~= false) then
+			self.is_hightlight = false
+			self:GetTextItem():SetTextColor(COLOR_W)
+		end
+	end
+end
+
+--------------------------------------------------------------------------------------------------------
+GUI = nil
+
+function drone_interact_start(obj)
+	if (GUI == nil) then
+		GUI = UIDroneInteract()
+	end
+	if (GUI) and (not GUI:IsShown()) then
+		GUI:Reset(obj)
+		GUI:ShowDialog(true)
+		Register_UI("UIDroneInteract","drone_object")
+	end
+end
+
+class "UIDroneInteract" (CUIScriptWnd)
+function UIDroneInteract:__init(obj) super(obj)
+	self:SetWndRect(Frect():set(0,0,1280,768))
+	self:SetAutoDelete(true)
+	self.xml = CScriptXmlInit()
+	self.xml:ParseFile("ui_drone_interact.xml")
+	
+	self.actions = self.xml:InitListBox("actions",self)
+	self.actions:Show(true)
+	self:Register(self.actions,"actions")
+	self:AddCallback("actions",ui_events.LIST_ITEM_CLICKED,self.OnSelectActionList,self)
+	
+	self.selected_idx = 0
+end
+
+function UIDroneInteract:__finalize()
+end
+
+function UIDroneInteract:Update()
+	CUIScriptWnd.Update(self)
+	
+	local obj = object_by_id(self.oid)
+	if not (obj and obj:alive()) then
+		return self:Close()
+	end
+	
+	local vec = game.world2ui(obj:position(),false,false)
+	if not (self:ScreenPosValid(vec)) then
+		return self:Close()
+	end
+	self.actions:SetWndPos(vec)
+	
+	if (self.actions:GetSize() > 0) then
+		local n = self.actions:GetSize()
+		for i=0,n-1 do
+			local k = self.actions:GetItemByIndex(i)
+			if (k) then
+				if (k:IsCursorOverWindow()) then
+					self.selected_idx = i
+				end
+				if (self.selected_idx == i) then
+					k:SetHightlight(true)
+				else
+					k:SetHightlight(false)
+				end
+			end
+		end
+	end
+end
+
+function UIDroneInteract:Reset(obj)
+	if not (obj and obj:alive()) then
+		return self:Close()
+	end
+	self.oid = obj:id()
+	self.selected_idx = 0
+	local k = db.drones_data_storage[self.oid]
+	
+	self.actions:RemoveAll()
+	self.actions:AddExistingItem(UIDroneInteractAction(self.actions:GetSize(),INTERACT_PICKUP))
+	if (k and k.attachment_sec) then
+		self.actions:AddExistingItem(UIDroneInteractAction(self.actions:GetSize(),INTERACT_DETACH,k.attachment_sec))
+	else
+		for _,v in ipairs(DRONE_ATTACHMENT_ITEMS) do
+			local itm = v.sec and db.actor:object(v.sec)
+			if (itm) then
+				self.actions:AddExistingItem(UIDroneInteractAction(self.actions:GetSize(),INTERACT_ATTACH,itm:section()))
+			end
+		end
+	end
+end
+
+function UIDroneInteract:OnSelectActionList()
+	if (self.actions:GetSize() == 0) then
+		return
+	end
+	self:SelectAction()
+end
+
+function UIDroneInteract:SelectAction()
+	local k = self.actions:GetItemByIndex(self.selected_idx)
+	if (k) then
+		if (k.cmd == INTERACT_PICKUP) then
+			drone_pickup(self.oid)
+			return self:Close()
+		end
+		if (k.cmd == INTERACT_ATTACH) then
+			drone_attach(self.oid,db.actor:object(k.sec))
+			return self:Close()
+		end
+		if (k.cmd == INTERACT_DETACH) then
+			drone_detach(self.oid,true)
+			return self:Close()
+		end
+	end
+end
+
+function UIDroneInteract:ChangeNextOption(flag)
+	if (self.actions:GetSize() == 0) then
+		return
+	end
+	if (flag) then
+		self.selected_idx = clamp(self.selected_idx - 1,0,self.actions:GetSize() - 1)
+	else
+		self.selected_idx = clamp(self.selected_idx + 1,0,self.actions:GetSize() - 1)
+	end
+end
+
+function UIDroneInteract:OnKeyboard(dik,keyboard_action)
+	local res = CUIScriptWnd.OnKeyboard(self,dik,keyboard_action)
+	if (res == false) then
+		if (dik == DIK_keys.DIK_ESCAPE) or (dik == DIK_keys.MOUSE_2) then 
+			self:Close()
+		end
+		if (keyboard_action == ui_events.WINDOW_KEY_PRESSED) then
+			if (dik == bind_to_dik(key_bindings.kFWD)) then
+				self:ChangeNextOption(true)
+			end
+			if (dik == bind_to_dik(key_bindings.kBACK)) then
+				self:ChangeNextOption(false)
+			end
+			if (dik == bind_to_dik(key_bindings.kL_STRAFE)) then
+				self:Close()
+			end
+			if (dik == bind_to_dik(key_bindings.kR_STRAFE)) then
+				self:SelectAction()
+			end
+		end
+	end
+	return res
+end
+
+function UIDroneInteract:Close()
+	self.oid = nil
+	self:HideDialog()
+	Unregister_UI("UIDroneInteract")
+end
+
+function UIDroneInteract:ScreenPosValid(vec)
+	return vec and (vec.x ~= -9999) and (vec.y ~= 0) and (vec.x <= 1024) and (vec.y <= 768)
+end
+
+function UIDroneInteract:ApplyScreenRatio(ele)
+	local r = (1024/768)/(device().width/device().height)
+	ele:SetWndSize(vector2():set(ele:GetWidth()*r,ele:GetHeight()))
+end
+
+
+--[[----------------------------------------------------------------------------------------------------
+	Registers
+------------------------------------------------------------------------------------------------------]]
+function on_game_start()
+	RegisterScriptCallback("save_state",save_state)
+	RegisterScriptCallback("load_state",load_state)
+	--RegisterScriptCallback("actor_on_first_update",actor_on_first_update)
+	RegisterScriptCallback("server_entity_on_register",server_entity_on_register)
+	RegisterScriptCallback("server_entity_on_unregister",server_entity_on_unregister)
+	RegisterScriptCallback("actor_on_attach_vehicle",actor_on_attach_vehicle)
+	RegisterScriptCallback("actor_on_detach_vehicle",actor_on_detach_vehicle)
+end
+
+function DEBUG(str,...)
+	local func = debug.getinfo(2,"S").source
+	local line = debug.getinfo(2,"l").currentline
+	func = string.sub(func,#func - string.find(string.reverse(func),"\\") + 2,#func)
+	local p = {...}
+	if (p and (#p ~= 0)) then
+		printf(string.format("[GhenTuong] %s:%s | %s",tostring(func),tostring(line),str),...)
+	else
+		printf(string.format("[GhenTuong] %s:%s | ",tostring(func),tostring(line)) .. "%s",str)
+	end
+end

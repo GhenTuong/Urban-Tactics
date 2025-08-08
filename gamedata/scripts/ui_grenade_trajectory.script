@@ -1,0 +1,305 @@
+--[[
+	GhenTuong
+	Discord: GhenTuong#1278
+	Twitter: https://twitter.com/GhenTuong
+	Todo:
+--]]
+
+function DEBUG(str,...)
+	local func = debug.getinfo(2,"S").source
+	local line = debug.getinfo(2,"l").currentline
+	func = string.sub(func,#func - string.find(string.reverse(func),"\\") + 2,#func)
+	local p = {...}
+	if (p and (#p ~= 0)) then
+		printf(string.format("[GhenTuong] %s:%s | %s",tostring(func),tostring(line),str),...)
+	else
+		printf(string.format("[GhenTuong] %s:%s | ",tostring(func),tostring(line)) .. "%s",str)
+	end
+end
+
+SHOW_TRAJECTORY_GRD = true
+SHOW_TRAJECTORY_LCH = true
+
+--[[----------------------------------------------------------------------------------------------------
+	Utilities
+------------------------------------------------------------------------------------------------------]]
+function get_grenade_ammo(section)
+	local str = ini_sys:r_string_ex(section,"grenade_class")
+	return str and str_explode(str,",")
+end
+
+function get_ammo_name(wpn)
+	local sec = wpn:section()
+	local ammo_type = wpn:get_ammo_type()
+	local ammo_list = (IsLauncher(wpn) and utils_item.get_ammo(sec,wpn:id())) or get_grenade_ammo(sec)
+	--DEBUG("[%s] %s %s",sec,ammo_type,ammo_list and ammo_list[ammo_type + 1])
+	return ammo_type and ammo_list and ammo_list[ammo_type + 1]
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	HUD
+------------------------------------------------------------------------------------------------------]]
+HUD = nil
+
+function hud_active()
+	if (HUD == nil) then
+		HUD = CGrenadeTrajectory()
+		get_hud():AddDialogToRender(HUD)
+	end
+end
+
+function hud_remove()
+	if (HUD) then
+		get_hud():RemoveDialogToRender(HUD)
+		HUD = nil
+	end
+end
+
+function hud_update()
+	if (HUD) then
+		HUD:Update(true)
+	end
+end
+
+class "CGrenadeTrajectory" (CUIScriptWnd)
+
+function CGrenadeTrajectory:__init() super()
+	self.dt = nil
+	
+	self.grenade_point_const = vector():set(0.4,0.3,0.1)
+	self.grenade_classes = {
+		[clsid.wpn_grenade_f1_s] 		= true,
+		[clsid.wpn_grenade_rgd5_s] 		= true,
+		[clsid.wpn_grenade_launcher_s] 	= true,
+		[clsid.wpn_grenade_fake] 		= true,
+		[clsid.wpn_grenade_f1]			= true,
+		[clsid.wpn_grenade_launcher] 	= true,
+		[clsid.wpn_grenade_rgd5] 		= true,
+		[clsid.wpn_grenade_rpg7]		= true
+	}
+	self.launcher_classes = {
+		[clsid.wpn_rg6_s]				= true,
+		[clsid.wpn_rg6]					= true
+	}
+	
+	self.particles_sec = [[_samples_particles_\grenade_throw_indicator]]
+	self.particles_num = 30
+	self.particles = nil
+	
+	self.dbg = {}
+end
+
+function CGrenadeTrajectory:__finalize()
+end
+
+function CGrenadeTrajectory:Update()
+	CUIScriptWnd.Update(self)
+	
+	if (level.get_active_cam() ~= 0) then
+		return self:Hide()
+	end
+	
+	local wpn = db.actor:active_item()
+	if not (self:WeaponValidate(wpn)) then
+		return self:Hide()
+	end
+	
+	if not (self.dt and (self.dt.oid == wpn:id())) then
+		self:WeaponLoadData(wpn)
+	end
+	
+	if (self.dt.is_grenade ~= true) and (axr_main.weapon_is_zoomed) then
+		return self:Hide()
+	end
+	
+	local pos = self:GetFirePosition(wpn)
+	local vel = self:GetFireVelocity(wpn)
+	if not (pos and vel) then
+		local sec = wpn:section()
+		if (self.dbg[sec] == nil) then
+			self.dbg[sec] = true
+			DEBUG("Wrong parameters [%s] pos = %s | vel = %s",sec,pos,vel)
+		end
+		return self:Hide()
+	end
+	self:DrawTrajectory(pos,vel)
+end
+
+function CGrenadeTrajectory:WeaponValidate(wpn)
+	if not (wpn) then
+		return false
+	end
+	if (SHOW_TRAJECTORY_GRD and self:IsGrenade(wpn)) then
+		return true
+	end
+	if (SHOW_TRAJECTORY_LCH and (self:IsLauncher(wpn) or (wpn:weapon_in_grenade_mode()))) then
+		return true
+	end
+	return false
+end
+
+function CGrenadeTrajectory:WeaponLoadData(wpn)
+	local sec = wpn:section()
+	
+	self.dt = {}
+	self.dt.oid = wpn:id()
+	self.dt.is_grenade = self:IsGrenade(wpn)
+	
+	if (self.dt.is_grenade) then
+		--[[
+		-- grenade_f1 and grenade_gd-05 have different offsets. Looks bad.
+		local v = parse_list(ini_sys,sec,"throw_point")
+		local x = tonumber(v[1]) or 0
+		local y = tonumber(v[2]) or 0
+		local z = tonumber(v[3]) or 0
+		self.dt.point = vector():set(x,y,z)
+		--]]
+		self.dt.point = vector():set(self.grenade_point_const)
+		self.dt.range = self.dt.point:magnitude()
+		self.dt.speed = SYS_GetParam(2,sec,"force_const")
+		return
+	end
+	
+	local hud_sec = SYS_GetParam(0,sec,"hud","nil")
+	self.dt.fire_bone_1 = SYS_GetParam(0,hud_sec,"fire_bone","")
+	self.dt.fire_bone_2 = SYS_GetParam(0,hud_sec,"fire_bone2","")
+	
+	if (self:IsLauncher(wpn)) then
+		self.dt.speed = SYS_GetParam(2,sec,"launch_speed")
+	else
+		local ammo_name = get_ammo_name(wpn)
+		self.dt.speed = ammo_name and SYS_GetParam(2,ammo_name,"ammo_grenade_vel")
+		self.dt.speed = self.dt.speed or SYS_GetParam(2,sec,"grenade_vel")
+	end
+	--DEBUG("[%s] WeaponLoadData() %s:%s:%s",wpn:name(),self.dt.fire_bone_1,self.dt.fire_bone_2,self.dt.speed)
+end
+
+function CGrenadeTrajectory:GetWeaponBoneId(wpn)
+	do
+		local bid = wpn:bone_id(self.dt.fire_bone_2,true)
+		if (bid ~= 65535) then
+			return bid
+		end
+		--DEBUG("[%s] fire_bone_2 = %s %s",wpn:name(),self.dt.fire_bone_2,bid)
+	end
+	do
+		local bid = wpn:bone_id(self.dt.fire_bone_1,true)
+		if (bid ~= 65535) then
+			return bid
+		end
+		--DEBUG("[%s] fire_bone_1 = %s %s",wpn:name(),self.dt.fire_bone_1,bid)
+	end
+	do
+		--Last resort. Should never happen.
+		local bid = wpn:bone_id("wpn_body",true)
+		if (bid ~= 65535) then
+			return bid
+		end
+	end
+end
+
+function CGrenadeTrajectory:GetFirePosition(wpn)
+	if (self.dt.is_grenade) then
+		--[[
+		Most accurate when verticle angle, p value, is 0.
+		The more away from 0 verticle angle is, the more inaccurate it becomes.
+		But most of the times people throw grenade while looking straight forward anyway.
+		--]]
+		local cam_dir = device().cam_dir
+		local h = self.dt.point:getH() + cam_dir:getH()
+		local p = self.dt.point:getP() + cam_dir:getP()
+		local vec = vector():setHP(h,p):normalize():mul(self.dt.range)
+		return vector():set(device().cam_pos):add(vec)
+	end
+	-- Launcher.
+	local bid = self:GetWeaponBoneId(wpn)
+	return bid and wpn:bone_position(bid,true)
+end
+
+function CGrenadeTrajectory:GetFireVelocity(wpn)
+	return self.dt.speed and vector():set(device().cam_dir):mul(self.dt.speed)
+end
+
+function CGrenadeTrajectory:DrawTrajectory(pos,vel)
+	if (self.particles == nil) then
+		self.particles = {}
+	end
+	for i=2,self.particles_num do
+		if (self.particles[i] == nil) then
+			self.particles[i] = particles_object(self.particles_sec)
+		end
+		local num = 0.05 * i
+		local vec = self:PositionInTrajectory(pos,vel,num)
+		self.particles[i]:set_position(vec)
+		if (self.particles[i]:playing() ~= true) then
+			self.particles[i]:play()
+		end
+	end
+end
+
+function CGrenadeTrajectory:Hide()
+	if (self.particles) then
+		for i=2,self.particles_num do
+			if (self.particles[i]) then
+				if (self.particles[i]:playing()) then
+					self.particles[i]:stop()
+				end
+				self.particles[i] = nil
+			end
+		end
+		self.particles = nil
+	end
+end
+
+function CGrenadeTrajectory:PositionInTrajectory(pos,vel,duration)
+	--[[
+	x = (v.x * t)
+	y = (v.y * t) - (g * (t^2) / 2)
+	Assume:
+		- Stalker engine has no air resistance. (Confirmed)
+		- Object mass doesn't affect the equalization. (Not Confirmed)
+	--]]
+	local motion = vector():set(vel.x,0,vel.z):mul(duration)
+	motion.y = (vel.y * duration) - (level.physics_world():gravity() * math.pow(duration,2) / 2)
+	return vector():set(pos):add(motion)
+end
+
+function CGrenadeTrajectory:IsGrenade(wpn)
+	return self.grenade_classes[wpn:clsid()] or false
+end
+
+function CGrenadeTrajectory:IsLauncher(wpn)
+	return self.launcher_classes[wpn:clsid()] or false
+end
+
+function CGrenadeTrajectory:RayCast(pos,dir,range,flag,obj)
+	local ray = ray_pick(pos,dir,range,flag,obj or db.actor)
+	if (ray:query()) then
+		return ray:get_distance()
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Callbacks
+------------------------------------------------------------------------------------------------------]]
+function actor_on_first_update()
+	hud_active()
+end
+
+function on_show_hide()
+	hud_update()
+end
+
+function actor_on_net_destroy()
+	hud_remove()
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Registers
+------------------------------------------------------------------------------------------------------]]
+function on_game_start()
+	RegisterScriptCallback("GUI_on_show",on_show_hide)
+	RegisterScriptCallback("GUI_on_hide",on_show_hide)
+	RegisterScriptCallback("actor_on_first_update",actor_on_first_update)
+	RegisterScriptCallback("actor_on_net_destroy",actor_on_net_destroy)
+end

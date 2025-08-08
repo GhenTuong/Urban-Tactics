@@ -1,0 +1,605 @@
+--[[----------------------------------------------------------------------------------------------------
+	GhenTuong
+	Discord: GhenTuong#1278
+	Twitter: https://twitter.com/GhenTuong
+------------------------------------------------------------------------------------------------------]]
+local GT = game.translate_string
+
+--[[----------------------------------------------------------------------------------------------------
+	Utilities
+------------------------------------------------------------------------------------------------------]]
+function object_by_id(id)
+	return id and (db.storage[id] and db.storage[id].object or level.object_by_id(id))
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Manager
+------------------------------------------------------------------------------------------------------]]
+_G.IED_MGR = nil
+
+class "CIedManager"
+function CIedManager:__init()
+	self.IED_STORAGE = {}
+	self.IED_INITIAL = {}
+	self.IED_ACT_OWN = {}
+	
+	self.cfg_item_to_blow = {}
+	self.cfg_blow_to_item = {}
+	
+	local ini = ini_file([[items\settings\deploy.ltx]])
+	if (ini:section_exist("ied")) then
+		for idx,val in pairs(utils_data.collect_section(ini,"ied",true)) do
+			if (ini_sys:section_exist(idx) and ini_sys:section_exist(val)) then
+				self.cfg_item_to_blow[idx] = val
+				self.cfg_blow_to_item[val] = idx
+			else
+				DEBUG("Section do not exist %s = %s | %s %s",idx,val,ini_sys:section_exist(idx),ini_sys:section_exist(val))
+			end
+		end
+	end
+	
+	RegisterScriptCallback("save_state",self)
+	RegisterScriptCallback("load_state",self)
+	RegisterScriptCallback("server_entity_on_unregister",self)
+	RegisterScriptCallback("actor_on_item_before_pickup",self)
+	
+	self.pickup_id = nil
+end
+
+function CIedManager:save_state(m_data)
+	m_data.GT_IED_STORAGE = self.IED_STORAGE
+	m_data.GT_IED_ACT_OWN = self.IED_ACT_OWN
+end
+
+function CIedManager:load_state(m_data)
+	self.IED_STORAGE = m_data.GT_IED_STORAGE or {}
+	self.IED_ACT_OWN = m_data.GT_IED_ACT_OWN or {}
+end
+
+function CIedManager:server_entity_on_unregister(se,flag)
+	if (flag == "se_explosive") and (self.IED_STORAGE[se.id]) then
+		self.IED_STORAGE[se.id] = nil
+		self:ActorOwnDel(se.id)
+	end
+end
+
+function CIedManager:ItemToBlow(sec)
+	return sec and self.cfg_item_to_blow[sec]
+end
+
+function CIedManager:BlowToItem(sec)
+	return sec and self.cfg_blow_to_item[sec]
+end
+
+function CIedManager:Storage()
+	return self.IED_STORAGE
+end
+
+function CIedManager:StorageById(id)
+	return id and self.IED_STORAGE[id]
+end
+
+function CIedManager:Initial()
+	return self.IED_INITIAL
+end
+
+function CIedManager:ActorOwn()
+	return self.IED_ACT_OWN
+end
+
+function CIedManager:ActorOwnSize()
+	return #self.IED_ACT_OWN
+end
+
+function CIedManager:ActorOwnGetIndex(id)
+	for i,v in ipairs(self.IED_ACT_OWN) do 
+		if (v == id) then 
+			return i
+		end
+	end
+end
+
+function CIedManager:ActorOwnAdd(id)
+	for i,v in ipairs(self.IED_ACT_OWN) do 
+		if (v == id) then 
+			return 
+		end
+	end
+	self.IED_ACT_OWN[#self.IED_ACT_OWN+1] = id
+end
+
+function CIedManager:ActorOwnDel(id)
+	for i,v in ipairs(self.IED_ACT_OWN) do 
+		if (v == id) then
+			table.remove(self.IED_ACT_OWN,i)
+			break
+		end
+	end
+end
+
+function CIedManager:Create(prs,actor_own)
+	local sec = prs and prs.sec
+	local pos = prs and prs.pos
+	local vid = prs and prs.vid
+	local gid = prs and prs.gid
+	local ang = prs and prs.ang
+	local fix = prs and prs.fix
+	local num = prs and prs.num
+	if (sec and pos and vid and gid and ang and self:BlowToItem(sec)) then
+		local se = alife_create(sec,pos,vid,gid)
+		se.angle = ang
+		local k = {}
+		k.num = num
+		if (fix) then
+			k.fix = fix
+			k.pos = {x = pos.x,y = pos.y,z = pos.z}
+			k.ang = {x = ang.x,y = ang.y,z = ang.z}
+		else
+			self.IED_INITIAL[se.id] = {pos = pos,ang = ang}
+		end
+		self.IED_STORAGE[se.id] = k
+		if (actor_own) then
+			self:ActorOwnAdd(se.id)
+		end
+		return true
+	end
+	DEBUG("Wrong parameters %s %s %s %s %s",sec,pos,vid,gid,ang)
+	return false
+end
+
+function CIedManager:actor_on_item_before_pickup(obj,flags)
+	if (self:BlowToItem(obj:section())) then
+		if (self.pickup_id == nil) then
+			self.pickup_id = obj:id()
+			CreateTimeEvent(AC_ID,"ied_pickup",0,self.PickupTimeEvent,self)
+		end
+		flags.ret_value = false
+	end
+end
+
+function CIedManager:PickupTimeEvent()
+	local obj = object_by_id(self.pickup_id)
+	local sec = obj and self:BlowToItem(obj:section())
+	if (sec) then
+		alife_create_item(sec,db.actor)
+		alife_release(obj)
+		news_manager.relocate_item(db.actor,"in",sec)
+	end
+	self.pickup_id = nil
+	return true
+end
+
+function CIedManager:Explode(num)
+	for id,k in pairs(self.IED_STORAGE) do
+		if (k.num == num) then
+			local obj = object_by_id(id)
+			if (obj and obj:condition() > 0) then
+				local h = hit()
+				h.type		= hit.fire_wound
+				h.power		= 100
+				h.impulse	= 0.0
+				h.direction = vector():set(0,1,0)
+				h.draftsman = db.actor
+				obj:hit(h)
+				obj:set_condition(0)
+			end
+			break
+		end
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Main
+------------------------------------------------------------------------------------------------------]]
+function remote_desc(obj)
+	return GT("st_ied_remote")
+end
+
+function remote_func(obj)
+	if (deploy_condition() and IED_MGR:ItemToBlow(obj:section())) then
+		if (HUD) then
+			HUD:Close()
+		end
+		hud_deploy_active(obj)
+	end
+end
+
+
+function generate_phone_number()
+	local operator_codes = {
+		[1] = {67,68,96,97,98}, -- Kyivstar 45%
+		[2] = {50,66,95,99}, -- Vodafone Ukraine 35%
+		[3] = {63,73,93}, -- Lifecell 20%
+	}
+	
+	local function is_unique_number(num)
+		for _,k in pairs(IED_MGR:Storage()) do
+			if (k.num == num) then
+				return false
+			end
+		end
+		return true
+	end
+	
+	for i=1,100 do
+		local opr = 0
+		local rnd = math.random(100)
+		if (rnd <= 45) then
+			opr = operator_codes[1]
+		elseif (rnd <= 80) then
+			opr = operator_codes[2]
+		else
+			opr = operator_codes[3]
+		end
+		local tmp = opr[math.random(#opr)] * 1000000 + math.random(0,999999)
+		if (is_unique_number(tmp)) then
+			return tmp
+		end
+	end
+end
+
+function deploy_condition()
+	if not (db.actor:alive()) then
+		return false
+	end
+	if (db.actor:get_attached_vehicle()) then
+		return false
+	end
+	if (db.actor:is_talking()) then
+		return false
+	end
+	if (IsMoveState("mcClimb")) then
+		return false
+	end
+	return true
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	HUD
+------------------------------------------------------------------------------------------------------]]
+HUD = nil
+
+function hud_deploy_active(obj)
+	if (HUD == nil) then
+		HUD = UIDeploy(obj)
+		get_hud():AddDialogToRender(HUD)
+		RegisterScriptCallback("on_key_press",on_key_press)
+	end
+end
+
+function hud_deploy_remove()
+	if (HUD) then
+		get_hud():RemoveDialogToRender(HUD)
+		HUD = nil
+		UnregisterScriptCallback("on_key_press",on_key_press)
+	end
+end
+
+function hud_deploy_update()
+	if (HUD) then
+		HUD:Update(true)
+	end
+end
+
+class "UIDeploy" (CUIScriptWnd)
+function UIDeploy:__init(obj) super(obj)
+	self:SetWndRect(Frect():set(0,0,1280,768))
+	self:SetAutoDelete(true)
+	
+	self.oid = obj:id()
+	self.sec = obj:section()
+	self.vis = self:GetAttachmentVisual(obj)
+	self.atm_name = "deploy_ied"
+	
+	self.active = db.actor:active_slot()
+	self.hiding = (self.active ~= 0) and true or false
+	db.actor:activate_slot(0)
+	hide_hud_inventory()
+end
+
+function UIDeploy:__finalize()
+end
+
+function UIDeploy:Update()
+	CUIScriptWnd.Update(self)
+	
+	if not (main_hud_shown()) then
+		return self:Close()
+	end
+	
+	if not (deploy_condition()) then
+		return self:Close()
+	end
+	
+	if not (object_by_id(self.oid)) then
+		return self:Close()
+	end
+	
+	if not (self.vis) then
+		return self:Close()
+	end
+	
+	if (self.hiding) then
+		if (db.actor:active_slot() == 0) then
+			self.hiding = false
+		elseif (db.actor:active_slot() ~= self.active) then
+			return self:Close()
+		end
+	else
+		if (db.actor:active_slot() ~= 0) then
+			return self:Close()
+		end
+	end
+	self.pos = self:GetDeployPosition()
+	self.dir = self:GetDeployRotation()
+	if (self.pos) then
+		if (db.actor:get_attachment(self.atm_name) == nil) then
+			db.actor:add_attachment(self.atm_name,self.vis):set_type(script_attachment_type.CamAttached)
+		end
+		local atm = db.actor:get_attachment(self.atm_name)
+		if (atm) then
+			atm:set_position(self.pos)
+			if (self.dir) then
+				local p = -math.deg(device().cam_dir:getP()) + math.deg(self.dir:getP()) + 90
+				local b = -math.deg(device().cam_dir:getH()) + math.deg(self.dir:getH())
+				atm:set_rotation(0,p,b)
+			else
+				local p = -math.deg(device().cam_dir:getP())
+				atm:set_rotation(0,p,0)
+			end
+		end
+	end
+end
+
+function UIDeploy:Deploy()
+	if (self.hiding) then
+		return
+	end
+	local atm = db.actor:get_attachment(self.atm_name)
+	if not (atm) then
+		return
+	end
+	
+	local obj = object_by_id(self.oid)
+	local k = {}
+	k.sec = IED_MGR:ItemToBlow(obj:section())
+	k.pos = vector():set(atm:get_transform().c)
+	k.vid = db.actor:level_vertex_id()
+	k.gid = db.actor:game_vertex_id()
+	k.ang = atm:get_transform():getHPB()
+	k.fix = self.dir and true or false
+	k.num = generate_phone_number()
+	if (IED_MGR:Create(k,true)) then
+		news_manager.relocate_item(db.actor,"out",obj:section())
+		alife_release(obj)
+	end
+	
+	self:ResumeActive()
+	return self:Close()
+end
+
+function UIDeploy:GetAttachmentVisual(obj)
+	local sec = obj and IED_MGR:ItemToBlow(obj:section())
+	return sec and SYS_GetParam(0,sec,"visual")
+end
+
+function UIDeploy:GetDeployPosition()
+	local pos = device().cam_pos
+	local dir = device().cam_dir
+	local ray = ray_pick(pos,dir,1,2,db.actor)
+	local tmp = ray:query() and ray:get_distance() or -1
+	return vector():set(0,0,(tmp > 0) and tmp or 1)
+end
+
+function UIDeploy:GetDeployRotation()
+	local pos = device().cam_pos
+	local dir = device().cam_dir
+	local xfm = matrix():setHPB(dir:getH(),dir:getP(),0):translate_over(pos)
+	
+	local k = {}
+	k[1] = vector():set(1,0,0):mul(-0.05)
+	k[2] = vector():set(1,0,0):mul(0.05)
+	k[3] = vector():set(0,1,0):mul(-0.05)
+	k[4] = vector():set(0,1,0):mul(0.05)
+	local t = {}
+	for i=1,4 do
+		local tmp = vector()
+		xfm:transform_tiny(tmp,k[i])
+		local num = self:RayPick(tmp,dir,1)
+		t[i] = (num > 0) and vector():mad(tmp,dir,num)
+	end
+	
+	if (t[1] and t[2] and t[3] and t[4]) then
+		local horz = vector():sub(t[2],t[1])
+		local vert = vector():sub(t[4],t[3])
+		return vector_cross(horz,vert):normalize()
+	end
+end
+
+function UIDeploy:RayPick(pos,dir,num)
+	local ray = ray_pick(pos,dir,num,2,db.actor)
+	return ray:query() and ray:get_distance() or -1
+end
+
+function UIDeploy:ResumeActive()
+	if (self.active ~= 0) then
+		db.actor:activate_slot(self.active)
+	end
+end
+
+function UIDeploy:Cancel()
+	self:ResumeActive()
+	return self:Close()
+end
+
+function UIDeploy:Close()
+	if (db.actor:get_attachment(self.atm_name)) then
+		db.actor:remove_attachment(self.atm_name)
+	end
+	hud_deploy_remove()
+end
+
+function on_key_press(dik)
+	if (HUD) then
+		if (dik == DIK_keys.MOUSE_1) then
+			HUD:Deploy()
+		end
+		if (dik == DIK_keys.MOUSE_2) then
+			HUD:Cancel()
+		end
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Binder
+------------------------------------------------------------------------------------------------------]]
+function init(obj)
+	obj:bind_object(CExplosiveBinder(obj))
+end
+
+class "CExplosiveBinder" (object_binder)
+function CExplosiveBinder:__init(obj) super(obj)
+	db.storage[self.object:id()] = {}
+	self.oid = self.object:id()
+	self.mdt = IED_MGR:StorageById(self.oid)
+end
+
+function CExplosiveBinder:update(delta)
+	object_binder.update(self,delta)
+end
+
+function CExplosiveBinder:InitPosition()
+	local k = IED_MGR:Initial()[self.oid]
+	if (k) then
+		if (k.pos) then
+			self.object:force_set_position(k.pos)
+		end
+		if (k.ang) then
+			self.object:force_set_rotation(k.ang)
+		end
+		IED_MGR:Initial()[self.oid] = nil
+	end
+end
+
+function CExplosiveBinder:AfterNetSpawnTimeEvent(oid)
+	local obj = object_by_id(oid)
+	local mgr = obj and obj:binded_object()
+	if (mgr) then
+		mgr:AfterNetSpawn()
+	end
+	return true
+end
+
+function CExplosiveBinder:AfterNetSpawn()
+	-- This binder net_spawn runs before object net_spawn so objects still haven't had physic shell yet.
+	if (self.mdt and self.mdt.fix) then
+		-- Physic shell should be available now but still check just in case.
+		if (self.object:get_physics_shell()) then
+			local ele = self.object:get_physics_shell():get_element_by_order(0)
+			if (ele:is_fixed() == false) then
+				ele:fix()
+			end
+		end
+		local pos = self:GetStoragePosition()
+		if (pos) then
+			self.object:force_set_position(pos)
+		end
+		local ang = self:GetStorageRotation()
+		if (ang) then
+			self.object:force_set_rotation(ang)
+		end
+	end
+end
+
+function CExplosiveBinder:GetStoragePosition()
+	if (self.mdt and self.mdt.pos) then
+		local x = tonumber(self.mdt.pos.x)
+		local y = tonumber(self.mdt.pos.y)
+		local z = tonumber(self.mdt.pos.z)
+		return x and y and z and vector():set(x,y,z)
+	end
+end
+
+function CExplosiveBinder:GetStorageRotation()
+	if (self.mdt and self.mdt.ang) then
+		local x = tonumber(self.mdt.ang.x)
+		local y = tonumber(self.mdt.ang.y)
+		local z = tonumber(self.mdt.ang.z)
+		return x and y and z and vector():set(x,y,z)
+	end
+end
+
+----------------------------------------------------------------------------------------------------
+function CExplosiveBinder:reload(section)
+	object_binder.reload(self,section)
+end
+
+function CExplosiveBinder:reinit()
+	object_binder.reinit(self)
+	db.storage[self.object:id()] = db.storage[self.object:id()] or {}
+	self.st = db.storage[self.object:id()]
+end
+
+function CExplosiveBinder:net_spawn(se_abstract)
+	if not (object_binder.net_spawn(self,se_abstract)) then
+		return false
+	end
+	db.add_obj(self.object)
+	self:InitPosition()
+	CreateTimeEvent(self.oid,"fix_bone_root",0,self.AfterNetSpawnTimeEvent,self,self.oid)
+	return true
+end
+
+function CExplosiveBinder:net_destroy()
+	db.del_obj(self.object)
+	object_binder.net_destroy(self)
+end
+
+function CExplosiveBinder:net_save_relevant()
+	return true
+end
+
+function CExplosiveBinder:save(packet)
+	object_binder.save(self,packet)
+	set_save_marker(packet,"save",false,"physics_binder")
+	set_save_marker(packet,"save",true,"physics_binder")
+end
+
+function CExplosiveBinder:load(packet)
+	object_binder.load(self,packet)
+	set_save_marker(packet,"load",false,"physics_binder")
+	set_save_marker(packet,"load",true,"physics_binder")
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Callbacks
+------------------------------------------------------------------------------------------------------]]
+function on_show_hide()
+	hud_deploy_update()
+end
+
+function actor_on_net_destroy()
+	hud_deploy_remove()
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Registers
+------------------------------------------------------------------------------------------------------]]
+function on_game_start()
+	_G.IED_MGR = CIedManager()
+	RegisterScriptCallback("GUI_on_show",on_show_hide)
+	RegisterScriptCallback("GUI_on_hide",on_show_hide)
+	RegisterScriptCallback("actor_on_net_destroy",actor_on_net_destroy)
+end
+
+function DEBUG(str,...)
+	local func = debug.getinfo(2,"S").source
+	local line = debug.getinfo(2,"l").currentline
+	func = string.sub(func,#func - string.find(string.reverse(func),"\\") + 2,#func)
+	local p = {...}
+	if (p and (#p ~= 0)) then
+		printf(string.format("[GhenTuong] %s:%s | %s",tostring(func),tostring(line),str),...)
+	else
+		printf(string.format("[GhenTuong] %s:%s | ",tostring(func),tostring(line)) .. "%s",str)
+	end
+end

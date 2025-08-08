@@ -1,0 +1,459 @@
+---==================================================================================================================---
+---                                                                                                                  ---
+---    Original Author(s) : NLTP_ASHES                                                                               ---
+---    Edited : N/A                                                                                                  ---
+---    Date : 06/08/2025                                                                                             ---
+---    License : Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)           ---
+---                                                                                                                  ---
+---    Script 3D UI used for the Nokia phone to detonate IEDs.                                                       ---
+---                                                                                                                  ---
+---==================================================================================================================---
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- Constants, global variables and imported functions
+-- ---------------------------------------------------------------------------------------------------------------------
+
+-- Singleton
+GUI                             = nil -- instance, don't touch
+
+local custom_ui_func = "ui_phone_nokia.get_ui"
+
+KEY_BACK_DEF = DIK_keys.DIK_COMMA
+KEY_BACK = KEY_BACK_DEF
+
+KEY_NEXT_DEF = DIK_keys.DIK_PERIOD
+KEY_NEXT = KEY_NEXT_DEF
+
+KEY_CALL_DEF = DIK_keys.DIK_J
+KEY_CALL = KEY_CALL_DEF
+
+KEY_RESET_DEF = DIK_keys.DIK_K
+KEY_RESET = KEY_RESET_DEF
+
+local TRIGGER_CALL = 0
+local TRIGGER_DONE = 1
+
+local NUMBER_TO_DIGIT = {
+	[1] = "nokia_dial_num_1",
+	[2] = "nokia_dial_num_2",
+	[3] = "nokia_dial_num_3",
+	[4] = "nokia_dial_num_4",
+	[5] = "nokia_dial_num_5",
+	[6] = "nokia_dial_num_6",
+	[7] = "nokia_dial_num_7",
+	[8] = "nokia_dial_num_8",
+	[9] = "nokia_dial_num_9",
+	[0] = "nokia_dial_num_0",
+}
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- General Functions
+-- ---------------------------------------------------------------------------------------------------------------------
+
+--- Function used to get the UI singleton for the UIGPSLocator class.
+--- @return UIPhoneNokia
+function get_ui()
+    if (not GUI) then
+        GUI = UIPhoneNokia()
+    end
+    return GUI
+end
+
+function key_callback_time_event()
+	local obj = db.actor:active_detector()
+	if (obj and SYS_GetParam(0,obj:section(),"custom_ui_func") == custom_ui_func) then
+		key_callback(true)
+		return false
+	end
+	key_callback(false)
+	DEBUG("key_callback_time_event")
+	return true
+end
+
+local key_callback_flag = false
+
+function key_callback(flag)
+	if (flag) then
+		if (key_callback_flag ~= true) then
+			key_callback_flag = true
+			DEBUG("key_callback_flag = %s",key_callback_flag)
+			RegisterScriptCallback("on_key_press",on_key_press)
+		end
+	else
+		if (key_callback_flag == true) then
+			key_callback_flag = false
+			DEBUG("key_callback_flag = %s",key_callback_flag)
+			UnregisterScriptCallback("on_key_press",on_key_press)
+		end
+	end
+end
+
+function on_key_press(dik)
+	if (GUI) then
+		GUI:OnKeyPress(dik)
+	end
+end
+
+function on_game_start()
+	RegisterScriptCallback("on_key_press",on_key_press)
+end
+
+function actor_on_item_use(obj,sec)
+	DEBUG()
+end
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- UI Class
+-- ---------------------------------------------------------------------------------------------------------------------
+
+class "UIPhoneNokia" (CUIScriptWnd)
+
+function UIPhoneNokia:__init() super()
+    printf("[ASH] INFO | Constructing Phone Nokia UI...")
+
+    self:Show(true)
+    self:Enable(true)
+
+    -- Build variables
+    self.m_update_timer = 0
+    self.m_update_freq = 100
+    self.m_signal_curr = 5
+    self.m_signal_rnd_bars_count = 2
+    self.m_signal_tex_prefix = "nokia_signal_bar_"
+    self.m_clock_digit_tex_prefix = "nokia_clock_num_"
+    self.m_dial_digit_tex_prefix = "nokia_dial_num_"
+    self.m_battery_tex_prefix = "nokia_battery_bar_"
+
+    -- Build UI
+    self.m_xml = CScriptXmlInit()
+    self.m_xml:ParseFile("ui_phone_nokia.xml")
+    self.m_xml:InitWindow("screen", 0, self)
+
+    self.m_menu = self.m_xml:InitStatic("screen:menu", self)
+    self.m_menu:InitTextureEx("nokia_menu", [[hud\p3d]])
+
+    self.m_phone = self.m_xml:InitStatic("screen:phone", self)
+    self.m_phone:InitTextureEx("nokia_phone", [[hud\p3d]])
+
+    self.m_signal = self.m_xml:InitStatic("screen:signal", self)
+    self.m_signal:InitTextureEx("nokia_signal", [[hud\p3d]])
+    self.m_signal_bars = {
+        self.m_xml:InitStatic("screen:signal_1", self),
+        self.m_xml:InitStatic("screen:signal_2", self),
+        self.m_xml:InitStatic("screen:signal_3", self),
+        self.m_xml:InitStatic("screen:signal_4", self)
+    }
+
+    for i = 1, #self.m_signal_bars do
+        self.m_signal_bars[i]:InitTextureEx(self.m_signal_tex_prefix .. i, [[hud\p3d]])
+    end
+
+    self.m_battery = self.m_xml:InitStatic("screen:battery", self)
+    self.m_battery:InitTextureEx("nokia_battery", [[hud\p3d]])
+    self.m_battery_bars = {
+        self.m_xml:InitStatic("screen:battery_1", self),
+        self.m_xml:InitStatic("screen:battery_2", self),
+        self.m_xml:InitStatic("screen:battery_3", self),
+        self.m_xml:InitStatic("screen:battery_4", self)
+    }
+
+    for i = 1, #self.m_battery_bars do
+        self.m_battery_bars[i]:InitTextureEx(self.m_battery_tex_prefix .. i, [[hud\p3d]])
+    end
+
+    self.m_time = self.m_xml:InitStatic("screen:time", self)
+    self.m_time:InitTextureEx("nokia_clock_num_colon", [[hud\p3d]])
+    self.m_time_digits = {
+        self.m_xml:InitStatic("screen:time_1", self),
+        self.m_xml:InitStatic("screen:time_2", self),
+        self.m_xml:InitStatic("screen:time_3", self),
+        self.m_xml:InitStatic("screen:time_4", self)
+    }
+
+    for i = 1, #self.m_time_digits do
+        self.m_time_digits[i]:InitTextureEx("nokia_clock_num_0", [[hud\p3d]])
+    end
+
+    self.m_dial_slots = {
+        self.m_xml:InitStatic("screen:dial_slot_1", self),
+        self.m_xml:InitStatic("screen:dial_slot_2", self),
+        self.m_xml:InitStatic("screen:dial_slot_3", self),
+        self.m_xml:InitStatic("screen:dial_slot_4", self),
+        self.m_xml:InitStatic("screen:dial_slot_5", self),
+        self.m_xml:InitStatic("screen:dial_slot_6", self),
+        self.m_xml:InitStatic("screen:dial_slot_7", self),
+        self.m_xml:InitStatic("screen:dial_slot_8", self),
+        self.m_xml:InitStatic("screen:dial_slot_9", self),
+        self.m_xml:InitStatic("screen:dial_slot_10", self),
+        self.m_xml:InitStatic("screen:dial_slot_11", self),
+        self.m_xml:InitStatic("screen:dial_slot_12", self),
+        self.m_xml:InitStatic("screen:dial_slot_13", self),
+        self.m_xml:InitStatic("screen:dial_slot_14", self),
+        self.m_xml:InitStatic("screen:dial_slot_15", self),
+        self.m_xml:InitStatic("screen:dial_slot_16", self)
+    }
+end
+
+function UIPhoneNokia:__finalize()
+    GUI = nil
+end
+
+function UIPhoneNokia:Reset()
+	self.phone_number = nil
+	self:TriggerReset()
+end
+
+function UIPhoneNokia:ShouldUpdate()
+    local tg = time_global()
+    if tg < self.m_update_timer then
+        return false
+    else
+        self.m_update_timer = tg + self.m_update_freq
+        return true
+    end
+end
+
+function UIPhoneNokia:Update()
+
+    CUIScriptWnd.Update(self)
+
+    if not self:ShouldUpdate() then
+        return
+    end
+	
+	if (self.trigger) then
+		self:TriggerUpdate()
+	end
+
+    -- Update connectivity
+    self:UpdateSignal()
+    self:UpdateSignalTextures()
+
+    -- Update battery
+    self:UpdateBatteryTextures()
+
+    -- Time of day
+    self:UpdateTimeOfDayTextures()
+	
+	self:UpdateDial()
+end
+
+function UIPhoneNokia:UpdateSignal()
+    if GetEvent("underground") or GetEvent("surge", "state") or GetEvent("psi_storm", "state") then
+        if self.m_signal_curr > 0 then
+            self.m_signal_curr = self.m_signal_curr - 1
+        end
+    elseif self.m_signal_curr < #self.m_signal_bars - self.m_signal_rnd_bars_count then
+        self.m_signal_curr = self.m_signal_curr + 1
+    else
+        self.m_signal_curr = math.random(#self.m_signal_bars - self.m_signal_rnd_bars_count, #self.m_signal_bars)
+    end
+end
+
+function UIPhoneNokia:UpdateSignalTextures()
+    for i = 1, #self.m_signal_bars do
+        self.m_signal_bars[i]:Show(i <= self.m_signal_curr)
+    end
+end
+
+function UIPhoneNokia:UpdateBatteryTextures()
+    local active_detector = db.actor:active_detector()
+    local battery_level = active_detector and active_detector:condition() or 1
+
+    for i = 1, #self.m_battery_bars do
+        self.m_battery_bars[i]:Show(i <= math.ceil(battery_level * #self.m_battery_bars))
+    end
+end
+
+function UIPhoneNokia:UpdateTimeOfDayTextures()
+    local ctt = utils_data.CTime_to_table(game.get_game_time())
+    local s_hrs = this.as_string(ctt.h, 2)
+    local s_mins = this.as_string(ctt.m, 2)
+    local hours_1, hours_2, mins_1, mins_2 = this.get_digits_as_textures(self.m_clock_digit_tex_prefix, s_hrs, s_mins)
+    self.m_time_digits[1]:InitTextureEx(hours_1, [[hud\p3d]])
+    self.m_time_digits[2]:InitTextureEx(hours_2, [[hud\p3d]])
+    self.m_time_digits[3]:InitTextureEx(mins_1, [[hud\p3d]])
+    self.m_time_digits[4]:InitTextureEx(mins_2, [[hud\p3d]])
+end
+
+function UIPhoneNokia:UpdateDial()
+	if (self.phone_number == nil) then
+		for i,k in ipairs(self.m_dial_slots) do
+			k:Show(false)
+		end
+		return
+	end
+	local str = tostring(self.phone_number)
+	for i,k in ipairs(self.m_dial_slots) do
+		local dit = (i <= #str) and tonumber(string.sub(str,i,i))
+		local num = dit or (i <= 10) and 0
+		if (num) then
+			k:InitTextureEx(NUMBER_TO_DIGIT[num],[[hud\p3d]])
+			k:Show(true)
+		else
+			k:Show(false)
+		end
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Detonator
+------------------------------------------------------------------------------------------------------]]
+function UIPhoneNokia:OnKeyPress(dik)
+	if (dik == KEY_NEXT) then
+		DEBUG("KEY_NEXT")
+		self:TriggerChangeNumber(true)
+	end
+	if (dik == KEY_BACK) then
+		DEBUG("KEY_BACK")
+		self:TriggerChangeNumber(false)
+	end
+	if (dik == KEY_CALL) then
+		DEBUG("KEY_CALL")
+		self:TriggerStart()
+	end
+	if (dik == KEY_RESET) then
+		self:Reset()
+	end
+end
+
+function UIPhoneNokia:TriggerChangeNumber(flag)
+	if (self.trigger) then
+		return
+	end
+	
+	-- Collect actor's ieds that have phone numbers.
+	local idx = nil
+	local tbl = {}
+	for _,oid in ipairs(IED_MGR:ActorOwn()) do
+		local k = IED_MGR:StorageById(oid)
+		if (k and k.num) then
+			tbl[#tbl+1] = {oid = oid,num = num}
+			if (self.selected_ied == oid) then
+				-- idx of selected ied in tbl.
+				idx = #tbl
+			end
+		end
+	end
+	
+	DEBUG("[%s]",idx)
+	-- Pick idx from tbl.
+	if (idx) then
+		if (flag) then
+			idx = math.min(idx+1,#tbl)
+		else
+			idx = math.max(idx-1,1)
+		end
+	else
+		idx = 1
+	end
+	
+	self.selected_ied = nil
+	self.phone_number = nil
+	local tmp = tbl[idx]
+	if (tmp)then
+		self.selected_ied = tmp.oid
+		self.phone_number = tmp.num
+	end
+	DEBUG("[%s] num:%s",idx,self.phone_number)
+end
+
+function UIPhoneNokia:TriggerStart()
+	if (self.trigger == nil and self.phone_number) then
+		self.trigger = {}
+		self.trigger.state = TRIGGER_CALL
+		self.trigger.timer = time_global() + math.random(1000,2000)
+		self.trigger.num = self.phone_number
+		self.trigger.snd = sound_object([[device\nokia\call]])
+	end
+end
+
+function UIPhoneNokia:TriggerReset()
+	if (self.trigger) then
+		if (self.trigger.snd) then
+			self.trigger.snd:stop()
+			self.trigger.snd = nil
+		end
+		self.trigger = nil
+	end
+	self.selected_ied = nil
+end
+
+function UIPhoneNokia:TriggerUpdate()
+	if (self.trigger.snd:playing() == false) then
+		self.trigger.snd:play(db.actor,0,sound_object.s2d + sound_object.looped)
+	end
+	if (self.trigger.state == TRIGGER_CALL) then
+		if (self.trigger.timer < time_global()) then
+			self.trigger.timer = time_global() + 5000
+			self.trigger.state = TRIGGER_DONE
+			IED_MGR:Explode(self.trigger.num)
+		end
+	end
+	if (self.trigger.state == TRIGGER_DONE) then
+		if (self.trigger.timer < time_global()) then
+			self:TriggerReset()
+		end
+	end
+end
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- Utility functions
+-- ---------------------------------------------------------------------------------------------------------------------
+
+--- Function used to get a given variable as a string. Returns nil if the variable cannot be casted.
+--- The parameter length can be used to specify the length of the return value, when working with numbers.
+--- The function will add 0s before the number to match the desired length.
+--- @param var any
+--- @param length number
+--- @return string
+function as_string(var, length)
+    if type(var) == "number" then
+        local ret = tostring(var)
+        if length then
+            while #ret < length do
+                ret = "0" .. ret
+            end
+        end
+        return ret
+    end
+    if type(var) == "boolean" then
+        return tostring(var)
+    end
+    if type(var) == "string" then
+        return var
+    end
+
+    printf("![ASH] ERROR | Cannot cast variable to string")
+
+    return var
+end
+
+--- Function used transform digits (as strings) to matching texture descriptions.
+--- E.g. : get_digits_as_textures("hi_", "02", "5") -> "hi_0", "hi_2", "hi_5"
+--- @param prefix string
+--- @param ... strings
+--- @return strings (multiple return values)
+function get_digits_as_textures(prefix, ...)
+    local elems = {...}
+    local textures = {}
+    for _,str in pairs(elems) do
+        for i = 1, #str do
+            local texture = strformat(prefix.."%s", str:sub(i, i))
+            table.insert(textures, texture)
+        end
+    end
+    return unpack(textures)
+end
+
+function DEBUG(str,...)
+	local func = debug.getinfo(2,"S").source
+	local line = debug.getinfo(2,"l").currentline
+	func = string.sub(func,#func - string.find(string.reverse(func),"\\") + 2,#func)
+	local p = {...}
+	if (p and (#p ~= 0)) then
+		printf(string.format("[GhenTuong] %s:%s | %s",tostring(func),tostring(line),str),...)
+	else
+		printf(string.format("[GhenTuong] %s:%s | ",tostring(func),tostring(line)) .. "%s",str)
+	end
+end

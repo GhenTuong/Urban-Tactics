@@ -1,0 +1,43 @@
+--[[
+	GhenTuong
+	Discord: GhenTuong#1278
+	Twitter: https://twitter.com/GhenTuong
+--]]
+OPT_PLAN_MINE_KEY = false
+
+function on_option_change()
+	if (ui_mcm) then
+		ui_grenade_trajectory.SHOW_TRAJECTORY_GRD = ui_mcm.get("urban_tactics/opt_show_trajectory_grd")
+		ui_grenade_trajectory.SHOW_TRAJECTORY_LCH = ui_mcm.get("urban_tactics/opt_show_trajectory_lch")
+		
+		OPT_PLAN_MINE_KEY = ui_mcm.get("urban_tactics/opt_plan_mine_key")
+		drone_object.KEY_DETONATE = ui_mcm.get("urban_tactics/drone_key_detonate") or drone_object.KEY_DETONATE_DEF
+	end
+end
+
+function on_mcm_load()
+	return
+	{
+		id	= "urban_tactics",
+		sh = true,
+		gr = {
+			{id = "tittle_line_1",type = "line"},
+			{id = "tittle_name",type = "title",text = "ui_mcm_menu_urban_tactics"},
+			{id = "tittle_line_2",type = "line"},
+			{id = "opt_show_trajectory_grd",type = "check",val = 1,def = true,},
+			{id = "opt_show_trajectory_lch",type = "check",val = 1,def = true,},
+			{id = "mine_line",type = "line",},
+			{id = "opt_plan_mine_key",type = "check",val = 1,def = false,},
+			
+			{id = "drone_line",type = "line"},
+			{id = "drone_name",type = "title",text = "ui_mcm_urban_tactics_drone_name"},
+			{id = "drone_desc",type = "desc",text = "ui_mcm_urban_tactics_drone_desc"},
+			{id = "drone_key_detonate",type = "key_bind",val = 2,def = drone_object.KEY_DETONATE_DEF},
+		}
+	}
+end
+
+function on_game_start()
+	RegisterScriptCallback("on_option_change",on_option_change)
+	on_option_change()
+end

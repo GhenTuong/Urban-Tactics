@@ -1,0 +1,59 @@
+<!--=================================================================================================================-->
+<!--                                                                                                                 -->
+<!--    Original Author(s) : Medialuna                                                                               -->
+<!--    Edited : Coordinates fixes, code comments (NLTP_ASHES - 06/08/2025)                                          -->
+<!--    Date : 06/08/2025                                                                                            -->
+<!--    License : Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)          -->
+<!--                                                                                                                 -->
+<!--    Texture descriptions for UI elements of the Nokia 5110 phone.                                                -->
+<!--                                                                                                                 -->
+<!--=================================================================================================================-->
+<w>
+    <file name="ui\nokia_5110_text.dds">
+        <!-- Misc -->
+		<texture id="nokia_user"               x="330"    y="31"     width="239"    height="67" />
+		<texture id="nokia_answer"             x="691"    y="31"     width="288"    height="67" />
+		<texture id="nokia_menu"               x="282"    y="160"    width="206"    height="66" />
+		<texture id="nokia_call"               x="573"    y="160"    width="139"    height="66" />
+		<texture id="nokia_phone"              x="829"    y="170"    width="134"    height="44" />
+
+        <!-- Dial digits -->
+        <texture id="nokia_dial_num_1"         x="280"    y="262"    width="72"     height="116" />
+        <texture id="nokia_dial_num_2"         x="352"    y="262"    width="72"     height="116" />
+        <texture id="nokia_dial_num_3"         x="423"    y="262"    width="72"     height="116" />
+        <texture id="nokia_dial_num_4"         x="496"    y="262"    width="72"     height="116" />
+        <texture id="nokia_dial_num_5"         x="568"    y="262"    width="72"     height="116" />
+        <texture id="nokia_dial_num_6"         x="640"    y="262"    width="72"     height="116" />
+        <texture id="nokia_dial_num_7"         x="712"    y="262"    width="72"     height="116" />
+        <texture id="nokia_dial_num_8"         x="784"    y="262"    width="72"     height="116" />
+        <texture id="nokia_dial_num_9"         x="856"    y="262"    width="72"     height="116" />
+        <texture id="nokia_dial_num_0"         x="928"    y="262"    width="72"     height="116" />
+
+        <!-- Clock digits -->
+		<texture id="nokia_clock_num_1"        x="374"    y="415"    width="49"     height="66" />
+        <texture id="nokia_clock_num_2"        x="423"    y="415"    width="49"     height="66" />
+        <texture id="nokia_clock_num_3"        x="472"    y="415"    width="49"     height="66" />
+        <texture id="nokia_clock_num_4"        x="521"    y="415"    width="49"     height="66" />
+        <texture id="nokia_clock_num_5"        x="570"    y="415"    width="49"     height="66" />
+        <texture id="nokia_clock_num_6"        x="619"    y="415"    width="49"     height="66" />
+        <texture id="nokia_clock_num_7"        x="668"    y="415"    width="49"     height="66" />
+        <texture id="nokia_clock_num_8"        x="717"    y="415"    width="49"     height="66" />
+        <texture id="nokia_clock_num_9"        x="766"    y="415"    width="49"     height="66" />
+        <texture id="nokia_clock_num_0"        x="815"    y="415"    width="49"     height="66" />
+		<texture id="nokia_clock_num_colon"    x="864"    y="415"    width="24"     height="66" />
+
+        <!-- Battery icon & bars -->
+		<texture id="nokia_battery"            x="175"    y="389"    width="35"     height="62" />
+		<texture id="nokia_battery_bar_1"      x="175"    y="307"    width="35"     height="71" />
+		<texture id="nokia_battery_bar_2"      x="175"    y="226"    width="35"     height="71" />
+		<texture id="nokia_battery_bar_3"      x="175"    y="145"    width="35"     height="71" />
+		<texture id="nokia_battery_bar_4"      x="175"    y="63"     width="35"     height="71" />
+
+        <!-- Signal icon & bars -->
+		<texture id="nokia_signal"             x="42"     y="389"    width="44"     height="62" />
+		<texture id="nokia_signal_bar_1"       x="42"     y="307"    width="44"     height="71" />
+		<texture id="nokia_signal_bar_2"       x="42"     y="226"    width="44"     height="71" />
+		<texture id="nokia_signal_bar_3"       x="42"     y="145"    width="44"     height="71" />
+		<texture id="nokia_signal_bar_4"       x="42"     y="63"     width="44"     height="71" />
+    </file>
+</w>

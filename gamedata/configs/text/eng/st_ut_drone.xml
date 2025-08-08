@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<string_table>
+	<string id="drone_use_hint">
+		<text>Use ($$ACTION_USE$$)</text>
+	</string>
+	<string id="drone_interact_pickup">
+		<text>Take</text>
+	</string>
+	<string id="drone_interact_attach">
+		<text>Attach %s</text>
+	</string>
+	<string id="drone_interact_detach">
+		<text>Detach %s</text>
+	</string>
+	
+	<string id="handheld_drone_name">
+		<text>Handheld Drone</text>
+	</string>
+	<string id="handheld_drone_desc">
+		<text>An unmanned aerial vehicle small enough to be man-portable. The drone is very maneuverable, can fit through tight spaces, and provides an edge view over a wide area. It is suitable for reconnaissance purposes.\n \n
+		%c[d_purple] • %c[ui_gray_2] Drones on the field are lost if owner leaves the current area.\n</text>
+	</string>
+	<string id="handheld_drone_deploy_desc">
+		<text>deploy</text>
+	</string>
+<!-------------------------------------------------------------------------------------------------------->
+	
+	<string id="drone_controller_name">
+		<text>Drone Remote Controller</text>
+	</string>
+	<string id="drone_controller_desc">
+		<text>An universal drone remote controller of an unknown branch from The Zone's black market. It provide basic controls for common handheld drones.\n \n
+		%c[d_purple] • %c[ui_gray_2] Range: %c[ui_gray_1]200 meters\n</text>
+	</string>
+	
+	<string id="ui_drone_hud_valid">
+		<text>[%s] Deploy</text>
+	</string>
+	<string id="ui_drone_hud_clear">
+		<text>Obstacles nearby</text>
+	</string>
+	<string id="st_drone_hud_round">
+		<text>Uneven ground</text>
+	</string>
+	<string id="st_drone_func_control">
+		<text>Active</text>
+	</string>
+	<string id="st_drone_func_deploy">
+		<text>Deploy</text>
+	</string>
+	
+	<string id="st_drone_controller_attachment">
+		<text>Attachment: %s</text>
+	</string>
+	<string id="st_drone_controller_na">
+		<text>N/A</text>
+	</string>
+	<string id="st_drone_controller_range">
+		<text>Distance: %s meters</text>
+	</string>
+	<string id="st_drone_controller_power">
+		<text>Power %s</text>
+	</string>
+</string_table>

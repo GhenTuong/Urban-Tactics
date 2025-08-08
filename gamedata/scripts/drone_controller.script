@@ -1,0 +1,320 @@
+--[[----------------------------------------------------------------------------------------------------
+	GhenTuong
+	Discord: GhenTuong#1278
+	Twitter: https://twitter.com/GhenTuong
+------------------------------------------------------------------------------------------------------]]
+local GT = game.translate_string
+
+--[[----------------------------------------------------------------------------------------------------
+	Utilities
+------------------------------------------------------------------------------------------------------]]
+function object_by_id(id)
+	return id and (db.storage[id] and db.storage[id].object or level.object_by_id(id))
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Main
+------------------------------------------------------------------------------------------------------]]
+local active_controller_id = nil
+local resume_controller_id = nil
+
+function menu_desc(obj)
+	local who = obj:parent()
+	if (who and who:id() == AC_ID) then
+		return game.translate_string("st_ui_inventory_view")
+	end
+end
+
+local menu_func_timer = 0
+function menu_func(obj)
+	overrides()
+	local who = obj:parent()
+	if not (who and who:id() == AC_ID) then
+		return
+	end
+	hide_hud_inventory()
+	active_controller_id = obj:id()
+	if (get_console_cmd(1,"g_3d_pda")) then
+		db.actor:make_item_active(obj)
+		ActorMenu.get_pda_menu():SetActiveSubdialog("eptController")
+	else
+		db.actor:move_to_slot(obj,14)
+		if (db.actor:active_slot() ~= 0) then
+			db.actor:activate_slot(0)
+		end
+		menu_func_timer = time_global()
+		CreateTimeEvent(0,"delay_2d_pda_draw",0,menu_func_time_event)
+	end
+end
+
+function menu_func_time_event()
+	if (time_global() - menu_func_timer > 5000) then
+		return true
+	end
+	if not (db.actor:active_item()) then
+		ActorMenu.get_pda_menu():ShowDialog(true) 
+		ActorMenu.get_pda_menu():SetActiveSubdialog("eptController") 
+		return true
+	end
+end
+
+function actor_on_update()
+	DEBUG("actor_on_update() %s %s %s",get_console_cmd(1,"g_3d_pda"),db.actor:active_slot(),ActorMenu.get_pda_menu():IsShown())
+	if not (get_console_cmd(1,"g_3d_pda") and db.actor:active_slot() == 14 or ActorMenu.get_pda_menu():IsShown()) then
+		local pda = db.actor:item_in_slot(14)
+		if (pda) then
+			db.actor:move_to_ruck(pda)
+		end
+		active_controller_id = nil
+		UnregisterScriptCallback("actor_on_update",actor_on_update)
+	end
+end
+
+function actor_on_detach_vehicle(obj)
+	if (IsDrone(obj)) then
+		local go = object_by_id(resume_controller_id)
+		local se = resume_controller_id and alife_object(resume_controller_id)
+		if (go and (go:clsid() == clsid.device_pda) and se and (se.parent_id == AC_ID) and db.actor:alive()) then
+			menu_func(go)
+		end
+		resume_controller_id = nil
+	end
+end
+
+function take_control_time_event(oid)
+	local obj = oid and object_by_id(oid)
+	local mgr = obj and obj:binded_object()
+	if (mgr) then
+		mgr:TakeControl()
+	end
+	return true
+end
+
+function save_state(m_data)
+	m_data.GT_RESUME_CONTROLLER_ID = resume_controller_id
+end
+
+function load_state(m_data)
+	resume_controller_id = m_data.GT_RESUME_CONTROLLER_ID
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	GUI
+------------------------------------------------------------------------------------------------------]]
+class "UIDeviceItem" (CUIListBoxItem)
+function UIDeviceItem:__init(obj) super(obj)
+	self:GetTextItem():SetText("")
+	self.oid = obj:id()
+	local k = db.drones_data_storage[self.oid]
+	
+	self.str_name = self:AddTextField("",1)
+	self.str_name:SetWndRect(Frect():set(5,0,300,17))
+	self.str_name:SetTextColor(GetARGB(255,200,200,200))
+	self.str_name:SetFont(GetFontLetterica18Russian())
+	self.str_name:SetWndSize(vector2():set(400,20))
+	self.str_name:SetEllipsis(true)
+	self.str_name:SetText(ui_item.get_obj_name(obj))
+	
+	self.str_attachment = self:AddTextField("",1)
+	self.str_attachment:SetWndRect(Frect():set(5,15,300,17))
+	self.str_attachment:SetTextColor(GetARGB(255,150,150,180))
+	self.str_attachment:SetFont(GetFontLetterica16Russian())
+	self.str_attachment:SetWndSize(vector2():set(400,20))
+	self.str_attachment:SetEllipsis(true)
+	self.str_attachment:SetText(self:GetAttachmentText(k))
+	
+	self.str_distance = self:AddTextField("",1)
+	self.str_distance:SetWndRect(Frect():set(5,30,300,17))
+	self.str_distance:SetTextColor(GetARGB(255,150,150,180))
+	self.str_distance:SetFont(GetFontLetterica16Russian())
+	self.str_distance:SetWndSize(vector2():set(400,20))
+	self.str_distance:SetEllipsis(true)
+	self.str_distance:SetText(self:GetDistanceText(obj))
+end
+
+function UIDeviceItem:DeviceUpdate()
+	local k = db.drones_data_storage[self.oid]
+	local obj = object_by_id(self.oid)
+	if (obj) then
+		self.str_attachment:SetText(self:GetAttachmentText(k))
+		self.str_distance:SetText(self:GetDistanceText(obj))
+	end
+end
+
+function UIDeviceItem:Validate()
+	local obj = object_by_id(self.oid)
+	return obj and obj:alive()
+end
+
+function UIDeviceItem:GetAttachmentText(k)
+	local str = k and k.attachment_sec and ui_item.get_sec_name(k.attachment_sec) or GT("st_drone_controller_na")
+	return strformat(GT("st_drone_controller_attachment"),str)
+end
+
+function UIDeviceItem:GetDistanceText(obj)
+	local range = db.actor:position():distance_to(obj:position())
+	return strformat(GT("st_drone_controller_range"),math.floor(range*10)/10)
+end
+
+----------------------------------------------------------------------------------------------------
+local GUI = nil
+
+function get_ui()
+	GUI = GUI or UIController()
+	GUI:Reset()
+	return GUI
+end
+
+class "UIController" (CUIScriptWnd)
+function UIController:__init() super()
+	self:SetWndRect(Frect():set(0,0,1024,768))
+	self.xml = CScriptXmlInit()
+	self.xml:ParseFile("ui_drone_controller.xml")
+	
+	self.CLR_N = utils_xml.get_color("ui_gray_1",true)
+	self.CLR_R = utils_xml.get_color("d_red",true)
+	self.CLR_G = utils_xml.get_color("d_green",true)
+	
+	self.form = self.xml:InitStatic("form",self)
+	self.dialog = self.xml:InitStatic("form:dialog",self.form)
+	self.xml:InitFrame("form:dialog:border",self.dialog)
+	
+	self.devices = self.xml:InitListBox("form:dialog:devices",self.dialog)
+	self.devices:Show(true)
+	self:Register(self.devices,"devices")
+	self:AddCallback("devices",ui_events.LIST_ITEM_CLICKED,self.OnSelectDeviceList,self)
+	
+	self.control_img = self.xml:InitStatic("form:dialog:control_img",self.dialog)
+	self.control_btn = self.xml:Init3tButton("form:dialog:control_img:control_btn",self.control_img)
+	self:Register(self.control_btn,"control")
+	self:AddCallback("control",ui_events.BUTTON_CLICKED,self.OnControlSelected,self)
+	self.control_img:Show(true)
+	self.control_btn:Show(true)
+end
+
+function UIController:__finalize()
+end
+
+function UIController:Update()
+	CUIScriptWnd.Update(self)
+	local idx = 0
+	while (idx < self.devices:GetSize()) do
+		local k = self.devices:GetItemByIndex(i)
+		if (k:Validate()) then
+			k:DeviceUpdate()
+			idx = idx + 1
+		else
+			self.devices:RemoveItem(k)
+		end
+	end
+	
+	local tmp = self.devices:GetSelectedItem()
+	local obj = tmp and object_by_id(tmp.oid)
+	local mgr = obj and obj:binded_object()
+	if (self.devices:GetSelectedItem()) then
+		if (mgr:CanTakeControl()) then
+			self.control_img:SetTextureColor(self.CLR_G)
+			self.control_btn:Enable(true)
+		else
+			self.control_img:SetTextureColor(self.CLR_R)
+			self.control_btn:Enable(false)
+		end
+	else
+		self.control_img:SetTextureColor(self.CLR_N)
+		self.control_btn:Enable(false)
+	end
+end
+
+function UIController:Reset()
+	DEBUG("UIController:Reset()")
+	RegisterScriptCallback("actor_on_update",actor_on_update)
+	self.dialog:Show(true)
+	ActorMenu.get_pda_menu():GetTabControl():Show(false)
+	
+	self.devices:RemoveAll()
+	for _,id in ipairs(DRONE_MGR:PlayerDrones()) do
+		local obj = object_by_id(id)
+		if (obj and obj:alive()) then
+			self.devices:AddExistingItem(UIDeviceItem(obj))
+		end
+	end
+end
+
+function UIController:OnSelectDeviceList()
+	if (self.devices:GetSize() == 0) then
+		return
+	end
+end
+
+function UIController:OnControlSelected()
+	local tmp = self.devices:GetSelectedItem()
+	if (tmp) then
+		CreateTimeEvent(0,"device_take_control",0,take_control_time_event,tmp.oid)
+		resume_controller_id = db.actor:active_item():id()
+		return self:Close()
+	end
+end
+
+function UIController:OnKeyboard(dik,keyboard_action)
+	local res = CUIScriptWnd.OnKeyboard(self,dik,keyboard_action)
+	if (res == false) then
+		if (keyboard_action == ui_events.WINDOW_KEY_RELEASED) then
+			if (dik == bind_to_dik(key_bindings.kUSE)) then
+				
+			end
+		end
+	end
+	return res
+end
+
+function UIController:Close()
+	if (db.actor:active_slot() ~= 0) then
+		db.actor:activate_slot(0)
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Overrides
+------------------------------------------------------------------------------------------------------]]
+local f_set_active_subdialog = nil
+
+function set_active_subdialog(section)
+	if (section == "eptController") then
+		local obj = db.actor:active_item() or db.actor:item_in_slot(14)
+		if (obj and obj:id() == active_controller_id) then
+			active_controller_id = nil
+			return get_ui()
+		end
+		ActorMenu.get_pda_menu():SetActiveSubdialog("eptTasks")
+		return 
+	end
+	return f_set_active_subdialog(section)
+end
+
+function overrides()
+	if (f_set_active_subdialog == nil) then
+		f_set_active_subdialog = pda.set_active_subdialog
+		pda.set_active_subdialog = set_active_subdialog
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Registers
+------------------------------------------------------------------------------------------------------]]
+function on_game_start()
+	RegisterScriptCallback("save_state",save_state)
+	RegisterScriptCallback("load_state",load_state)
+	RegisterScriptCallback("actor_on_detach_vehicle",actor_on_detach_vehicle)
+end
+
+function DEBUG(str,...)
+	local func = debug.getinfo(2,"S").source
+	local line = debug.getinfo(2,"l").currentline
+	func = string.sub(func,#func - string.find(string.reverse(func),"\\") + 2,#func)
+	local p = {...}
+	if (p and (#p ~= 0)) then
+		printf(string.format("[GhenTuong] %s:%s | %s",tostring(func),tostring(line),str),...)
+	else
+		printf(string.format("[GhenTuong] %s:%s | ",tostring(func),tostring(line)) .. "%s",str)
+	end
+end

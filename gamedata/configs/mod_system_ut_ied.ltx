@@ -1,0 +1,98 @@
+;----------------------------------------------------------------------------------------------------
+;	GhenTuong
+;	Discord: GhenTuong#1278
+;	Twitter: https://twitter.com/GhenTuong
+;	To do:
+;----------------------------------------------------------------------------------------------------
+[ied_chinese]:identity_immunities
+kind						= i_tool
+class						= II_ANTIR
+cform						= skeleton
+visual						= dynamics\weapons\mine\ied_chinese.ogf
+inv_vol						= 1
+inv_name					= ied_chinese_name
+inv_name_short				= ied_chinese_name
+description					= ied_chinese_desc
+icons_texture				= ui\actor_items\ui_icon_ied
+inv_grid_width				= 1
+inv_grid_height				= 2
+inv_grid_x					= 3
+inv_grid_y					= 0
+cost						= 0
+inv_weight					= 0.8
+attach_angle_offset			= -1.5708,0.1919,3.1416
+attach_position_offset		= 0.075,0.066,0.023
+attach_bone_name			= bip01_l_hand
+auto_attach					= false
+eat_health					= 0
+eat_satiety					= 0
+eat_power					= 0
+eat_radiation				= 0
+eat_alcohol					= 0
+eat_portions_num			= 1
+wounds_heal_perc			= 0
+tier						= 4
+
+use4_functor                = ied_gameplay.remote_desc
+use4_action_functor         = ied_gameplay.remote_func
+can_trade					= false
+
+[ied_chinese_blow]:explosive_barrel,grenade_explosive_charge
+kind						= i_tool
+class						= S_EXPLO
+script_binding				= ied_gameplay.init
+visual						= dynamics\weapons\mine\ied_chinese.ogf
+inv_name					= ied_chinese_name
+inv_name_short				= ied_chinese_name
+description					= ied_chinese_desc
+cost						= 0
+can_take					= true
+immunities_sect				= planted_mine_immunities
+
+;----------------------------------------------------------------------------------------------------
+;	Overrides
+;----------------------------------------------------------------------------------------------------
+![ied_rpg_new]
+icons_texture				= ui\actor_items\ui_icon_ied
+inv_grid_width				= 1
+inv_grid_height				= 2
+inv_grid_x					= 2
+inv_grid_y					= 0
+visual						= dynamics\weapons\mine\ied_rpg.ogf
+inv_name					= ied_rpg_new_name
+inv_name_short				= ied_rpg_new_name
+description					= ied_rpg_new_desc
+use4_functor                = ied_gameplay.remote_desc
+use4_action_functor         = ied_gameplay.remote_func
+
+![ied_new]
+visual						= dynamics\weapons\mine\ied_shells.ogf
+inv_name					= ied_new_name
+inv_name_short				= ied_new_name
+description					= ied_new_desc
+use4_functor                = ied_gameplay.remote_desc
+use4_action_functor         = ied_gameplay.remote_func
+
+![rpg_new_blow]
+class						= S_EXPLO
+script_binding				= ied_gameplay.init
+visual						= dynamics\weapons\mine\ied_rpg.ogf
+inv_name					= ied_rpg_new_name
+inv_name_short				= ied_rpg_new_name
+description					= ied_rpg_new_desc
+cost						= 0
+can_take					= true
+snd_explode					= wpn_fake_og-7b_explode
+explode_particles			= explosions\explosion_ied
+
+![ied_new_blow]
+class						= S_EXPLO
+script_binding				= ied_gameplay.init
+visual						= dynamics\weapons\mine\ied_shells.ogf
+inv_name					= ied_new_name
+inv_name_short				= ied_new_name
+description					= ied_new_desc
+cost						= 0
+can_take					= true
+snd_explode					= wpn_fake_og-7b_explode
+explode_particles			= explosions\explosion_ied

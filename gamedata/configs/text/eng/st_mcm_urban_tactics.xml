@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<string_table>
+	<string id="ui_mcm_menu_urban_tactics">
+		<text>GT - Urban Tactics</text>
+	</string>
+	
+	<string id="ui_mcm_urban_tactics_opt_show_trajectory_grd">
+		<text>Predict grenade</text>
+	</string>
+	<string id="ui_mcm_urban_tactics_opt_show_trajectory_grd_desc">
+<text>
+\n
+Display trajectory prediction when throwing grenades.\n
+</text>
+	</string>
+<!------------------------------------------------------>
+	<string id="ui_mcm_urban_tactics_opt_show_trajectory_lch">
+		<text>Predict grenade launcher</text>
+	</string>
+	<string id="ui_mcm_urban_tactics_opt_show_trajectory_lch_desc">
+<text>
+\n
+Show trajectory prediction when using grenade launchers.\n
+</text>
+	</string>
+<!------------------------------------------------------>
+	<string id="ui_mcm_urban_tactics_opt_plan_mine_key">
+		<text>Interaction keys for tripwire traps</text>
+	</string>
+	<string id="ui_mcm_urban_tactics_opt_plan_mine_key_desc">
+<text>
+\n
+Disable: [Fire] - active. [Aim] - cancel.\n
+Enable: [Switch grenade launcher] - active. [Reload] - cancel.\n
+\n
+[Use] - recover placed traps. (Staying within 2 meters from the grenade end of the trap. Aim at the grenade.)\n
+</text>
+	</string>
+
+<!------------------------------------------------------>
+	<string id="ui_mcm_urban_tactics_drone_name">
+		<text>Drone</text>
+	</string>
+	<string id="ui_mcm_urban_tactics_drone_key_deploy">
+		<text>Deploy</text>
+	</string>
+	<string id="ui_mcm_urban_tactics_drone_desc">
+<text>Note:
+\n• Deployed drones will disappear when leaving the current zone.
+\n• Hostile stalkers will shoot drones when getting close.
+\n• Mutants will be alert when drones getting close.
+\n• When drones being shotdown, explosive won't detonate and will disappear.
+\n
+\nMovement:
+\n	Key [Sprint] -> Fly up.
+\n	Key [Crouch] -> Fly down.
+\n	Key [Forward] -> Fly forward.
+\n	Key [Backward] -> Fly backward.
+\n	Key [Strafe left] -> Strafe left.
+\n	Key [Strafe right] -> Strafe right.
+\n	Key [Lean left] -> Steer left.
+\n	Key [Lean right] -> Steer right.
+\n
+\nAction:
+\n	Key [Use] -> Stop controlling drone.
+\n	Key [Zoom] -> Camera zoom, supports both hold and toggle modes.
+</text>
+	</string>
+	<string id="ui_mcm_urban_tactics_drone_key_detonate">
+		<text>Detonate</text>
+	</string>
+</string_table>

@@ -1,0 +1,307 @@
+--[[
+	GhenTuong
+	Discord: GhenTuong#1278
+	Twitter: https://twitter.com/GhenTuong
+--]]
+
+function DEBUG(str,...)
+	local func = debug.getinfo(2,"S").source
+	local line = debug.getinfo(2,"l").currentline
+	func = string.sub(func,#func - string.find(string.reverse(func),"\\") + 2,#func)
+	local p = {...}
+	if (p and (#p ~= 0)) then
+		printf(string.format("[GhenTuong] %s:%s | %s",tostring(func),tostring(line),str),...)
+	else
+		printf(string.format("[GhenTuong] %s:%s | ",tostring(func),tostring(line)) .. "%s",str)
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Main
+------------------------------------------------------------------------------------------------------]]
+local FLARE_STORAGE = {}
+
+flare_objects = {}
+
+function add_binded_object(obj)
+	flare_objects[obj:id()] = obj
+end
+
+function del_binded_object(obj)
+	flare_objects[obj:id()] = nil
+end
+
+function on_explode(obj)
+	local sec = SYS_GetParam(0,obj:section(),"on_explode_spawn")
+	if (sec and ini_sys:section_exist(sec)) then
+		local pos = obj:position():add(vector():set(0,0.1,0))
+		local vid = db.actor:level_vertex_id()
+		local gid = db.actor:game_vertex_id()
+		local se = alife_create(sec,pos,vid,gid)
+		if (se) then
+			se.angle = obj:angle()
+		end
+	end
+end
+
+function read_color(str)
+	local v = str and str_explode(str,",")
+	local a = (v and tonumber(v[1]) or 0) * math.pow(2,24)
+	local r = (v and tonumber(v[2]) or 0) * math.pow(2,16)
+	local g = (v and tonumber(v[3]) or 0) * math.pow(2,8)
+	local b = (v and tonumber(v[4]) or 0) * math.pow(2,0)
+	--DEBUG("read_color %s",a + r + g + b)
+	return fcolor():set(a + r + g + b)
+end
+--[[
+function create_flare(sec,pos)
+	local se = alife_create(sec,pos,db.actor:level_vertex_id(),db.actor:game_vertex_id())
+
+	if (se) then
+		local dt = utils_stpk.get_lamp_data(se)
+		dt.light_flags			= 15 -- 1111
+		dt.main_cone_angle		= 360
+		dt.main_range			= SYS_GetParam(2,sec,"main_range")			or dt.main_range
+		dt.main_color			= SYS_GetParam(2,sec,"main_color")			or dt.main_color
+		dt.main_brightness		= SYS_GetParam(2,sec,"main_brightness")		or dt.main_brightness
+		dt.ambient_radius		= SYS_GetParam(2,sec,"ambient_radius")		or dt.ambient_radius
+		local color_animation	= SYS_GetParam(0,sec,"main_color_animator")	or "none"
+		if (color_animation ~= "none") then
+			dt.main_color_animator = color_animation
+		end
+		dt.main_bone			= SYS_GetParam(0,sec,"main_bone")			or "bone_lamp"
+		dt.ambient_bone			= SYS_GetParam(0,sec,"ambient_bone")		or "bone_lamp"
+		utils_stpk.set_lamp_data(dt,se)
+	end
+end
+--]]
+
+--[[----------------------------------------------------------------------------------------------------
+	Binder
+------------------------------------------------------------------------------------------------------]]
+function init(obj)
+	obj:bind_object(CFlareBinder(obj))
+end
+
+class "CFlareBinder" (object_binder)
+function CFlareBinder:__init(obj) super(obj)
+	db.storage[self.object:id()] = {}
+	self.oid = self.object:id()
+	local section = self.object:section()
+	
+	self.duration	= SYS_GetParam(2,section,"duration",0) * 1000
+	self.end_effect	= SYS_GetParam(2,section,"duration_end_effect",0) * 1000
+	self.pos_offset	= vector():set(0,0.1,0)
+	
+	self.snd_name	= SYS_GetParam(0,section,"snd_name")
+	self.snd		= self.snd_name and sound_object(self.snd_name)
+	
+	self.ptc_name	= SYS_GetParam(0,section,"ptc_name")
+	self.ptc		= self.ptc_name and particles_object(self.ptc_name)
+	
+	self.color		= read_color(SYS_GetParam(0,section,"color"))
+	self.brightness	= math.min(SYS_GetParam(2,section,"brightness",0) / 255,1)
+	
+	self.light						= script_light()
+	self.light.type					= 1
+	self.light.range				= SYS_GetParam(2,section,"range",0)
+	self.light.color				= fcolor():set(self.color)
+	self.light.shadow				= true
+	self.light.enabled				= false
+	self.light.lanim				= "koster"
+	self.light.lanim_brightness		= self.brightness
+	
+	self.set_force	= nil
+	
+	self.fc_delta = nil
+	self.fc_timer = nil
+	self.fc_delay = 50
+	self.object:set_fastcall(self.update,self)
+end
+
+function CFlareBinder:reload(section)
+	object_binder.reload(self,section)
+end
+
+function CFlareBinder:reinit()
+	object_binder.reinit(self)
+	db.storage[self.object:id()] = db.storage[self.object:id()] or {}
+	self.st = db.storage[self.object:id()]
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Update
+------------------------------------------------------------------------------------------------------]]
+function CFlareBinder:update(delta)
+	object_binder.update(self,delta)
+	local t = time_global()
+	if (self.fc_timer and (self.fc_timer > t)) then
+		return
+	end
+	self.fc_delta = self.fc_timer and (t - self.fc_timer + self.fc_delay) or 0
+	self.fc_timer = t + self.fc_delay
+	
+	if (FLARE_STORAGE[self.oid] == nil) then
+		FLARE_STORAGE[self.oid] = self.duration
+	end
+	
+	FLARE_STORAGE[self.oid] = math.max(0,FLARE_STORAGE[self.oid] - self.fc_delta)
+	if (FLARE_STORAGE[self.oid] == 0) then
+		FLARE_STORAGE[self.oid] = nil
+		self:Destroy()
+		return
+	end
+	
+	if (self.set_force ~= true) then
+		self.set_force = true
+		local mass = self.object:mass()
+		local grav = level.physics_world():gravity()
+		self.object:set_const_force(VEC_Y,(mass * (grav - 1.5)),100000)
+	end
+	
+	--DEBUG("[%s]:Update() %s",self.object:name(),FLARE_STORAGE[self.oid])
+	self:UpdateSound()
+	self:UpdateParticles()
+	self:UpdateLight()
+end
+
+function CFlareBinder:UpdateSound()
+	if not (self.snd) then
+		return
+	end
+	
+	self.snd.volume = math.min(FLARE_STORAGE[self.oid] / self.end_effect,1)
+	if (self.snd:playing()) then
+		self.snd:set_position(self.object:position())
+	else
+		self.snd:play_at_pos(self.object,self.object:position(),0,(sound_object.s3d))
+	end
+end
+
+function CFlareBinder:UpdateParticles()
+	if not (self.ptc) then
+		return
+	end
+	
+	if (FLARE_STORAGE[self.oid] < self.end_effect) then
+		if (self.ptc:playing()) then
+			self.ptc:stop_deffered()
+		end
+	else
+		self.ptc:move_to(self.object:position(),VEC_ZERO)
+		if (self.ptc:playing() ~= true) then
+			self.ptc:play(false)
+		end
+	end
+end
+
+function CFlareBinder:UpdateLight()
+	if not (self.light) then
+		return
+	end
+	
+	local num = math.min(FLARE_STORAGE[self.oid] / self.end_effect,1) * self.brightness
+	self.light.lanim_brightness = num
+	
+	self.light:set_position(self.object:position():add(self.pos_offset))
+	if (self.light.enabled ~= true) then
+		self.light.enabled = true
+	end
+	self.light:update()
+end
+
+function CFlareBinder:Destroy()
+	--DEBUG("[%s] SelfDestroy()",self.object:name())
+	if (self.snd) then
+		self.snd:stop()
+		self.snd = nil
+	end
+	if (self.ptc) then
+		self.ptc:stop()
+		self.ptc = nil
+	end
+	if (self.light) then
+		self.light.enabled = false
+		self.light:update()
+		self.light = nil
+	end
+	
+	local se = self.object and alife_object(self.object:id())
+	return se and alife_release(se)
+end
+
+
+--[[----------------------------------------------------------------------------------------------------
+	Schemes
+------------------------------------------------------------------------------------------------------]]
+function CFlareBinder:net_spawn(se_abstract)
+	if not (object_binder.net_spawn(self,se_abstract)) then
+		return false
+	end
+	db.add_obj(self.object)
+	add_binded_object(self.object)
+	return true
+end
+
+function CFlareBinder:net_destroy()
+	db.del_obj(self.object)
+	del_binded_object(self.object)
+	object_binder.net_destroy(self)
+end
+
+function CFlareBinder:net_save_relevant()
+	return true
+end
+
+function CFlareBinder:save(packet)
+	object_binder.save(self,packet)
+	set_save_marker(packet,"save",false,"physics_binder")
+	xr_logic.save_obj(self.object,packet)
+	set_save_marker(packet,"save",true,"physics_binder")
+end
+
+function CFlareBinder:load(packet)
+	object_binder.load(self,packet)
+	set_save_marker(packet,"load",false,"physics_binder")
+	xr_logic.load_obj(self.object,packet)
+	set_save_marker(packet,"load",true,"physics_binder")
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Callbacks
+------------------------------------------------------------------------------------------------------]]
+function save_state(m_data)
+	m_data.GT_FLARE_STORAGE = FLARE_STORAGE
+end
+
+function load_state(m_data)
+	FLARE_STORAGE = m_data.GT_FLARE_STORAGE or {}
+end
+
+function actor_on_first_update()
+	local function function_for_each_object(id)
+		local se = alife_object(id)
+		if not (se) then
+			FLARE_STORAGE[id] = nil
+			return
+		end
+		if not (simulation_objects.is_on_the_actor_level(se)) then
+			--DEBUG("[%s] release",se:name())
+			alife_release(se)
+			FLARE_STORAGE[id] = nil
+		end
+	end
+	
+	for id,_ in pairs(FLARE_STORAGE) do
+		function_for_each_object(id)
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Registers
+------------------------------------------------------------------------------------------------------]]
+function on_game_start()
+	RegisterScriptCallback("save_state",save_state)
+	RegisterScriptCallback("load_state",load_state)
+	RegisterScriptCallback("actor_on_first_update",actor_on_first_update)
+end

@@ -1,0 +1,147 @@
+--[[----------------------------------------------------------------------------------------------------
+	GhenTuong
+	Discord: GhenTuong#1278
+	Twitter: https://twitter.com/GhenTuong
+------------------------------------------------------------------------------------------------------]]
+--[[
+Overrides:
+axr_npc_vs_heli.best_heli
+axr_npc_vs_heli.action_npc_vs_heli:execute()
+--]]
+--[[----------------------------------------------------------------------------------------------------
+	Utilities
+------------------------------------------------------------------------------------------------------]]
+function distance_xz_sqr(a,b)
+	return a:position():distance_to_xz_sqr(b:position())
+end
+
+function firing_line_of_sight_clear(npc,obj)
+	if (npc and obj) then
+		local pos = utils_obj.safe_bone_pos(npc,"bip01_spine2")
+		local dir = vector():sub(obj:center(),pos):normalize()
+		local ray = ray_pick(pos,dir,100,3,npc)
+		if (ray:query()) then
+			local who = ray:get_object()
+			if (who and (who:id() == obj:id())) then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+function validate(npc,vid)
+	if (vid and vid < 4294967295 and npc:accessible(vid)) then 
+		return (db.used_level_vertex_ids[vid] == nil) or (db.used_level_vertex_ids[vid] == npc:id())
+	end 
+	return false
+end 
+
+--[[----------------------------------------------------------------------------------------------------
+	Main
+------------------------------------------------------------------------------------------------------]]
+local DRONE_COMBAT_RANGE = math.pow(25,2)
+
+function best_enemy_drone(npc)
+	local o = nil
+	local d = DRONE_COMBAT_RANGE
+	for id,obj in pairs(db.drones) do
+		local dis = distance_xz_sqr(npc,obj)
+		if (obj:alive() and (d > dis)) then
+			local who = obj:get_holder_owner()
+			if (who and npc:relation(who) == game_object.enemy) then
+				o = obj
+				d = dis
+			end
+		end
+	end
+	return o
+end
+
+function can_npc_fight_drone(npc,obj)
+	-- Using holder.
+	if (npc:get_attached_vehicle()) then
+		return false
+	end
+	-- Prioritize creature enemies if seeing them or they are closer.
+	local ene = npc:best_enemy()
+	if (ene) then
+		if (npc:see(ene)) then
+			return false
+		end
+		if (distance_xz_sqr(npc,ene) < distance_xz_sqr(npc,obj)) then
+			return false
+		end
+	end
+	return true
+end
+
+local f_best_heli = nil
+function best_heli(npc)
+	local obj = best_enemy_drone(npc)
+	if (obj and can_npc_fight_drone(npc,obj)) then
+		return obj
+	end
+	return f_best_heli(npc)
+end
+
+function axr_npc_vs_heli.action_npc_vs_heli:drone_execute(obj)
+	local npc = self.object
+	if (npc:path_type() ~= game_object.level_path) then
+		npc:set_path_type(game_object.level_path)
+	end
+	
+	local t = time_global()
+	local see = firing_line_of_sight_clear(npc,obj)
+	local dir = vector():sub(obj:center(),utils_obj.safe_bone_pos(npc,"bip01_r_finger02"))
+	
+	if (self.st.vid) then
+		-- Move to cover.
+		if (npc:level_vertex_id() ~= self.st.vid) then
+			local new_state = see and "raid_fire" or "raid"
+			state_mgr.set_state(npc,new_state,nil,nil,{look_dir = dir},{fast_set = true})
+			axr_npc_vs_heli.lmove(npc,self.st.vid,self.st)
+			return
+		end
+		-- Stay at cover.
+		local new_state = see and "threat_fire" or "threat"
+		state_mgr.set_state(npc,new_state,nil,nil,{look_dir = dir},{fast_set = true})
+		
+		self.st.__keep_point_until = self.st.__keep_point_until or (t + math.random(3000,8000))
+		if (self.st.__keep_point_until > t) then
+			return
+		end
+		-- Change cover.
+		self.st.__keep_point_until = nil
+		db.used_level_vertex_ids[self.st.vid] = nil
+		self.st.vid = nil
+	else
+		--[[
+		if (see) then
+			state_mgr.set_state(npc,"threat_fire",nil,nil,{look_dir = dir},{fast_set = true})
+			return
+		end
+		--]]
+	end
+	
+	if (self:try_go_cover(npc,obj:position(),10) == nil) then
+		self:try_to_strafe(npc)
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Overrides
+------------------------------------------------------------------------------------------------------]]
+function overrides()
+	if (f_best_heli == nil) then
+		f_best_heli = axr_npc_vs_heli.best_heli
+		axr_npc_vs_heli.best_heli = best_heli
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Registers
+------------------------------------------------------------------------------------------------------]]
+function on_game_start()
+	overrides()
+end

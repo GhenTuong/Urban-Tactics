@@ -1,0 +1,602 @@
+--[[
+	GhenTuong
+	Discord: GhenTuong#1278
+	Twitter: https://twitter.com/GhenTuong
+--]]
+
+function DEBUG(str,...)
+	local func = debug.getinfo(2,"S").source
+	local line = debug.getinfo(2,"l").currentline
+	func = string.sub(func,#func - string.find(string.reverse(func),"\\") + 2,#func)
+	local p = {...}
+	if (p and (#p ~= 0)) then
+		printf(string.format("[GhenTuong] %s:%s | %s",tostring(func),tostring(line),str),...)
+	else
+		printf(string.format("[GhenTuong] %s:%s | ",tostring(func),tostring(line)) .. "%s",str)
+	end
+end
+
+local GT = game.translate_string
+
+function tss()
+	return game.get_game_time():diffSec(level.get_start_time())
+end
+
+function same_faction_witness_see_victim(npc,p)
+	if not (npc and p) then
+		return false
+	end
+	for i,v in pairs() do
+		
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Main
+------------------------------------------------------------------------------------------------------]]
+local MIN_FORGET_TIME = 60 * 10
+local MAX_FORGET_TIME = 60 * 20
+
+local DEPLOY_DELAY = 3000
+local DEPLOY_RANGE = 2
+local DEFUSE_RANGE = 2
+
+local DEPLOY_SND_1 = [[interface\items\inv_items_wpn_1]]
+local DEPLOY_SND_2 = [[interface\items\inv_items_grenade_1]]
+local CHECKOUT_SND = [[weapons\generic_checkout]]
+
+mine_objects = {}
+
+function add_binded_object(obj)
+	mine_objects[obj:id()] = obj
+end
+
+function del_binded_object(obj)
+	mine_objects[obj:id()] = nil
+end
+
+DEPLOY_TABLE = {
+	{
+		tool = "tool_tripwire_f1",
+		mine = "mine_tripwire_f1",
+	},
+}
+
+TOOL_SECTION = {
+	["tool_tripwire_f1"] = true,
+}
+
+function get_section_mine(sec)
+	for _,k in pairs(DEPLOY_TABLE) do
+		if (sec == k.tool) then
+			return k.mine
+		end
+	end
+end
+
+function get_section_tool(sec)
+	for _,k in pairs(DEPLOY_TABLE) do
+		if (sec == k.mine) then
+			return k.tool
+		end
+	end
+end
+
+-- Mine is defused.
+function TimeEvent_use_callback(oid)
+	local obj = level.object_by_id(oid)
+	local sec = obj and get_section_tool(obj:section())
+	if (sec) then
+		alife_create_item(sec,db.actor)
+		alife_release(obj)
+	end
+	return true
+end
+
+-- Mine is triggered.
+function on_physic_contact(obj,who)
+	if (obj and who) then
+		--DEBUG("%s %s",obj:name(),who:name())
+		CreateTimeEvent(obj:id(),"TimeEvent_exp_callback",0,TimeEvent_exp_callback,obj:id())
+	end
+end
+
+-- Mine spawns explosive.
+function TimeEvent_exp_callback(oid)
+	local obj = level.object_by_id(oid)
+	local sec = obj and SYS_GetParam(0,obj:section(),"mine_attachment_section")
+	if (sec and ini_sys:section_exist(sec)) then
+		sound_object(CHECKOUT_SND):play_no_feedback(obj,sound_object.s3d,0,obj:position(),1,1)
+		alife_create(sec,obj:position(),obj:level_vertex_id(),obj:game_vertex_id())
+		alife_release(obj)
+	end
+	return true
+end
+
+function actor_on_item_use(obj)
+	if (TOOL_SECTION[obj:section()]) then
+		if (HUD) then
+			HUD:Close(true)
+		else
+			hud_active(obj:section())
+		end
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	HUD
+------------------------------------------------------------------------------------------------------]]
+HUD = nil
+
+function hud_active(section)
+	if (HUD == nil) then
+		HUD = CMineDeploy(section)
+		get_hud():AddDialogToRender(HUD)
+	end
+end
+
+function hud_remove()
+	if (HUD) then
+		get_hud():RemoveDialogToRender(HUD)
+		HUD = nil
+	end
+end
+
+function hud_update()
+	if (HUD) then
+		HUD:Update(true)
+	end
+end
+
+class "CMineDeploy" (CUIScriptWnd)
+function CMineDeploy:__init(section) super(section)
+	self.sec = section
+	self.particle_head = particles_object([[_samples_particles_\laying_mine_indicator]])
+	self.particle_tail = particles_object([[_samples_particles_\laying_mine_indicator]])
+	
+	self.position_head = nil
+	self.position_tail = nil
+	
+	self.mine_length = 2.0
+	
+	self.resume_slot = db.actor:active_slot()
+	db.actor:activate_slot(0)
+	hide_hud_inventory()
+end
+
+function CMineDeploy:__finalize()
+end
+
+function CMineDeploy:Update()
+	CUIScriptWnd.Update(self)
+	
+	if not (db.actor:alive()) then
+		return self:Close(false)
+	end
+	if (db.actor:get_current_holder()) then
+		return self:Close(false)
+	end
+	if (db.actor:is_talking()) then
+		return self:Close(false)
+	end
+	
+	--[[
+	if (db.actor:active_item()) then
+		if (self.resume_slot) then
+			self.resume_slot = nil
+		end
+	end
+	--]]
+	
+	if not (self.sec and db.actor:object(self.sec)) then
+		-- Don't have any item.
+		return self:Close(false)
+	end
+	
+	if (self.position_head) then
+		self:UpdateParticle(self.particle_head,self.position_head)
+		if (self.position_head:distance_to_xz(db.actor:position()) > 10) then
+			-- Too far.
+			return self:Close(true)
+		end
+	else
+		self:UpdateParticle(self.particle_head,self:GetPositionHead())
+	end
+	
+	if (self.position_head) then
+		self:UpdateParticle(self.particle_tail,self:GetPositionTail())
+	else
+		self:UpdateParticle(self.particle_tail,nil)
+	end
+	
+	if (self.position_head and self.position_tail) then
+		self:CreateMine()
+		self:RemoveTool()
+		sound_object(DEPLOY_SND_1):play(db.actor,0,sound_object.s2d)
+		return self:Close(true)
+	end
+end
+
+function CMineDeploy:CreateMine()
+	local sec = get_section_mine(self.sec)
+	local pos = self.position_head
+	local vid = db.actor:level_vertex_id()
+	local gid = db.actor:game_vertex_id()
+	if not (sec and ini_sys:section_exist(sec)) then
+		return
+	end
+	local se = alife_create(sec,pos,vid,gid)
+	local dir = vector():sub(self.position_tail,self.position_head):normalize()
+	local pit = -dir:getP()
+	local yaw = (dir:getH() > 0) and (dir:getH() + math.pi) or (dir:getH() - math.pi)
+	se.angle = vector():set(pit,yaw,0)
+end
+
+function CMineDeploy:RemoveTool()
+	local itm = db.actor:object(self.sec)
+	if (itm) then
+		alife_release(itm)
+	end
+end
+
+function CMineDeploy:UpdateParticle(ele,pos)
+	if not (ele) then
+		return
+	end
+	if (pos) then
+		local vec = vector():set(pos)
+		vec.y = vec.y + 0.3
+		ele:set_position(vec)
+		if (ele:playing() ~= true) then
+			ele:play()
+		end
+	else
+		if (ele:playing() == true) then
+			ele:stop()
+		end
+	end
+end
+
+function CMineDeploy:Deploy()
+	if (self.position_head == nil) then
+		local pos = self:GetPositionHead()
+		if (pos) then
+			self.position_head = pos
+			sound_object(DEPLOY_SND_2):play(db.actor,0,sound_object.s2d)
+		end
+		return
+	end
+	if (self.position_tail == nil) then
+		self.position_tail = self:GetPositionTail()
+		return
+	end
+end
+
+function CMineDeploy:Cancel()
+	if (self.position_tail) then
+		return
+	end
+	if (self.position_head) then
+		self.position_head = nil
+		return
+	end
+	return self:Close(true)
+end
+
+function CMineDeploy:GetPositionHead()
+	return self:GetLookPosition(DEPLOY_RANGE)
+end
+
+function CMineDeploy:GetPositionTail()
+	if not (self.position_head) then
+		return
+	end
+	
+	local tmp = self:GetLookPosition(DEPLOY_RANGE)
+	if not (tmp and (tmp:distance_to_xz(self.position_head) > 0.2)) then
+		return
+	end
+	
+	local vec = vector():set(self.position_head)
+	vec.y = vec.y + 0.2
+	local dir = vector():sub(tmp,self.position_head):normalize()
+	local top = vector():mad(vec,dir,self.mine_length)
+	local pos = self:GetDownPosition(top,1)
+	if not (pos and (pos:distance_to_xz(db.actor:position()) < DEPLOY_RANGE)) then
+		return
+	end
+	
+	local dir = vector():sub(pos,self.position_head):normalize()
+	if not (math.abs(dir:getP()) < math.rad(30)) then
+		return
+	end
+	
+	local length = pos:distance_to(self.position_head)
+	if not (self:IsDirectionClear(vec,dir,length)) then
+		return
+	end
+	
+	return pos
+end
+
+function CMineDeploy:GetLookPosition(range)
+	local pos = device().cam_pos
+	local dir = device().cam_dir
+	local tmp = self:RayCast(pos,dir,range*2,2)
+	local vec = (tmp > 0) and vector():mad(pos,dir,tmp)
+	if (vec and (vec:distance_to_xz(db.actor:position()) < range)) then
+		return vec
+	end
+end
+
+function CMineDeploy:IsDirectionClear(pos,dir,range)
+	local pos = vector():add(self.position_head,vector():set(0,0.15,0))
+	local tmp = self:RayCast(pos,dir,range,2)
+	return (tmp < 0)
+end
+
+function CMineDeploy:GetDownPosition(vec,offset)
+	local pos = vector():set(vec)
+	pos.y = pos.y + 0.01
+	local dir = vector():set(0,-1,0)
+	local tmp = self:RayCast(pos,dir,offset,2)
+	return (tmp > 0) and vector():mad(pos,dir,tmp)
+end
+
+function CMineDeploy:RayCast(pos,dir,range,flag,obj)
+	local ray = ray_pick(pos,dir,range,flag,obj or db.actor)
+	if (ray:query()) then
+		return ray:get_distance()
+	end
+	return -1
+end
+
+function CMineDeploy:Close(need_resume_slot)
+	--DEBUG("CMineDeploy:Close()")
+	if (need_resume_slot and tonumber(self.resume_slot)) then
+		db.actor:activate_slot(tonumber(self.resume_slot))
+	end
+	
+	self:UpdateParticle(self.particle_head,nil)
+	self.particle_head = nil
+	self:UpdateParticle(self.particle_tail,nil)
+	self.particle_tail = nil
+	
+	hud_remove()
+end
+
+function on_key_press(dik)
+	if (HUD == nil) then
+		return
+	end
+	
+	if (dik == DIK_keys.DIK_ESCAPE) then
+		return HUD:Close(false)
+	end
+	
+	local key = dik_to_bind(dik)
+
+	if (urban_tactics_option_mcm and urban_tactics_option_mcm.OPT_PLAN_MINE_KEY) then
+		if (key == key_bindings.kWPN_FUNC) then
+			return HUD:Deploy()
+		end
+		if (key == key_bindings.kWPN_RELOAD) then
+			return HUD:Cancel()
+		end
+	else
+		if (key == key_bindings.kWPN_FIRE) then
+			return HUD:Deploy()
+		end
+		if (key == key_bindings.kWPN_ZOOM) then
+			return HUD:Cancel()
+		end
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Mine
+------------------------------------------------------------------------------------------------------]]
+function init(obj)
+	obj:bind_object(CMineBinder(obj))
+end
+
+class "CMineBinder" (object_binder)
+function CMineBinder:__init(obj) super(obj)
+	db.storage[self.object:id()] = {}
+	self.oid = self.object:id()
+	local section = self.object:section()
+	
+	-- Physic object.
+	self.defuse		= false
+	self.defuse_use = SYS_GetParam(0,section,"mine_defuse_use","false") == "true" and true or false
+	self.defuse_tip = "st_defuse"
+	
+	self.fc_timer = nil
+	self.fc_delay = 100
+	self.object:set_fastcall(self.update,self)
+end
+
+function CMineBinder:reload(section)
+	object_binder.reload(self,section)
+end
+
+function CMineBinder:reinit()
+	object_binder.reinit(self)
+	db.storage[self.object:id()] = db.storage[self.object:id()] or {}
+	self.st = db.storage[self.object:id()]
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Update
+------------------------------------------------------------------------------------------------------]]
+function CMineBinder:update(delta)
+	object_binder.update(self,delta)
+	local t = time_global()
+	if (self.fc_timer and (self.fc_timer > t)) then
+		return
+	end
+	self.fc_timer = t + self.fc_delay
+	
+	if (self.defuse ~= true) then
+		self.defuse = true
+		--DEBUG("[%s] %s %s",self.object:name(),self.defuse_use,self.defuse_tip)
+		self.object:set_nonscript_usable(self.defuse_use)
+		self.object:set_tip_text(self.defuse_tip)
+	end
+end
+
+function CMineBinder:use_callback(obj,who)
+	if (obj:position():distance_to_sqr(who:position()) > math.pow(DEFUSE_RANGE,2)) then
+		return
+	end
+	if (db.actor:object("swiss_knife"))
+	or (db.actor:object("leatherman_tool")) then
+		CreateTimeEvent(obj:id(),"TimeEvent_use_callback",0,TimeEvent_use_callback,obj:id())
+	end
+end
+
+function CMineBinder:hit_callback(obj,power,dir,who,bone_id)
+	--DEBUG("%s %s %s",obj and obj:name(),who and who:name(),power)
+	CreateTimeEvent(obj:id(),"TimeEvent_exp_callback",0,TimeEvent_exp_callback,obj:id())
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Schemes
+------------------------------------------------------------------------------------------------------]]
+function CMineBinder:net_spawn(se_abstract)
+	if not (object_binder.net_spawn(self,se_abstract)) then
+		return false
+	end
+	db.add_obj(self.object)
+	add_binded_object(self.object)
+	self.object:set_callback(callback.hit,self.hit_callback,self)
+	self.object:set_callback(callback.use_object,self.use_callback,self)
+	return true
+end
+
+function CMineBinder:net_destroy()
+	self.object:set_callback(callback.hit,nil)
+	self.object:set_callback(callback.use_object,nil)
+	db.del_obj(self.object)
+	del_binded_object(self.object)
+	object_binder.net_destroy(self)
+end
+
+function CMineBinder:net_save_relevant()
+	return true
+end
+
+function CMineBinder:save(packet)
+	object_binder.save(self,packet)
+	set_save_marker(packet,"save",false,"physics_binder")
+	set_save_marker(packet,"save",true,"physics_binder")
+end
+
+function CMineBinder:load(packet)
+	object_binder.load(self,packet)
+	set_save_marker(packet,"load",false,"physics_binder")
+	set_save_marker(packet,"load",true,"physics_binder")
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Explosive
+------------------------------------------------------------------------------------------------------]]
+function init_explosive(obj)
+	obj:bind_object(CExplosiveBinder(obj))
+end
+
+class "CExplosiveBinder" (object_binder)
+function CExplosiveBinder:__init(obj) super(obj)
+	db.storage[self.object:id()] = {}
+	self.oid = self.object:id()
+	
+	self.fc_timer = nil
+	self.fc_delay = 100
+	self.object:set_fastcall(self.update,self)
+end
+
+function CExplosiveBinder:reload(section)
+	object_binder.reload(self,section)
+end
+
+function CExplosiveBinder:reinit()
+	object_binder.reinit(self)
+	db.storage[self.object:id()] = db.storage[self.object:id()] or {}
+	self.st = db.storage[self.object:id()]
+end
+
+function CExplosiveBinder:update(delta)
+	object_binder.update(self,delta)
+	local t = time_global()
+	if (self.fc_timer and (self.fc_timer > t)) then
+		return
+	end
+	self.fc_timer = t + self.fc_delay
+	
+	self:Explode()
+end
+
+function CExplosiveBinder:Explode()
+	local h = hit()
+	h.type		= hit.fire_wound
+	h.power		= 100
+	h.impulse	= 0
+	h.direction	= VEC_Y
+	if (SYS_GetParam(0,self.object:section(),"mine_owner_actor","false") == "true") then
+		h.draftsman	= db.actor
+	else
+		h.draftsman	= self.object
+	end
+	self.object:hit(h)
+end
+
+function CExplosiveBinder:net_spawn(se_abstract)
+	if not (object_binder.net_spawn(self,se_abstract)) then
+		return false
+	end
+	db.add_obj(self.object)
+	return true
+end
+
+function CExplosiveBinder:net_destroy()
+	db.del_obj(self.object)
+	object_binder.net_destroy(self)
+end
+
+function CExplosiveBinder:net_save_relevant()
+	return true
+end
+
+function CExplosiveBinder:save(packet)
+	object_binder.save(self,packet)
+	set_save_marker(packet,"save",false,"physics_binder")
+	set_save_marker(packet,"save",true,"physics_binder")
+end
+
+function CExplosiveBinder:load(packet)
+	object_binder.load(self,packet)
+	set_save_marker(packet,"load",false,"physics_binder")
+	set_save_marker(packet,"load",true,"physics_binder")
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Callbacks
+------------------------------------------------------------------------------------------------------]]
+function on_show_hide()
+	hud_update()
+end
+
+function actor_on_net_destroy()
+	hud_remove()
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Registers
+------------------------------------------------------------------------------------------------------]]
+function on_game_start()
+	RegisterScriptCallback("GUI_on_show",on_show_hide)
+	RegisterScriptCallback("GUI_on_hide",on_show_hide)
+	RegisterScriptCallback("actor_on_net_destroy",actor_on_net_destroy)
+	RegisterScriptCallback("actor_on_item_use",actor_on_item_use)
+	RegisterScriptCallback("on_key_press",on_key_press)
+end
