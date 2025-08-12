@@ -119,7 +119,7 @@
  
 [sprite]
         shader                           = particles\blend
-        texture                          = cinemavfx\smoke_burst_02
+        texture                          = fx\ied\smoke_burst_02
  
 [timelimit]
         value                            = 0.100000

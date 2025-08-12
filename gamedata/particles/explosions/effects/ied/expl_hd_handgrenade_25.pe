@@ -117,7 +117,7 @@
  
 [sprite]
         shader                           = particles\blend
-        texture                          = cinemavfx\debris_huge_burst_01
+        texture                          = fx\ied\debris_huge_burst_01
  
 [timelimit]
         value                            = 0.100000

@@ -119,7 +119,7 @@
  
 [sprite]
         shader                           = particles\blend
-        texture                          = farcry4\dust_puff_big_02
+        texture                          = fx\ied\dust_puff_big_02
  
 [timelimit]
         value                            = 0.100000

@@ -2,4 +2,8 @@
 	<file name="ui\urban_tactics\ui_vehicle_wheel">
 	    <texture id="ui_vehicle_wheel" x="0" y="0" width="128" height="128" />
 	</file>
+	
+	<file name="ui\urban_tactics\ui_remote_ied">
+	    <texture id="ui_remote_ied" x="0" y="0" width="256" height="128" />
+	</file>
 </w>

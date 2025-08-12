@@ -57,4 +57,9 @@
         <dial_slot_15  x="0.0056125"    y="0.0052"    width="0.0030125"    height="0.0048"    stretch="1" />
         <dial_slot_16  x="0.0026"    y="0.0052"    width="0.0030125"    height="0.0048"    stretch="1" />
     </screen>
+	<hud>
+		<marker_ied x="0" y="0" width="100" height="50" stretch="1" alignment="c" location_level="5">
+			<texture>ui_remote_ied</texture>
+		</marker_ied>
+	</hud>
 </w>

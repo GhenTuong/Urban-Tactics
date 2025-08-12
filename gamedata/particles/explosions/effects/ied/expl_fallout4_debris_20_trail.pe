@@ -130,7 +130,7 @@
  
 [sprite]
         shader                           = particles\blend
-        texture                          = cinemavfx\fireball_07
+        texture                          = fx\ied\fireball_07
  
 [timelimit]
         value                            = 7.000000
