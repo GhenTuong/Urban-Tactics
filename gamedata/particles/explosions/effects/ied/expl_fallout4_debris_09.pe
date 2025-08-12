@@ -122,7 +122,7 @@
  
 [sprite]
         shader                           = particles\blend
-        texture                          = fallout4\bitsmediummanufacturedchunk01anim_d
+        texture                          = fx\ied\bitsmediummanufacturedchunk01anim_d
  
 [timelimit]
         value                            = 0.100000

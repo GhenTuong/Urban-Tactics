@@ -103,7 +103,7 @@
  
 [sprite]
         shader                           = particles\xdistort
-        texture                          = cinemavfx\distort_anomaly_01
+        texture                          = fx\ied\distort_anomaly_01
  
 [timelimit]
         value                            = 0.100000

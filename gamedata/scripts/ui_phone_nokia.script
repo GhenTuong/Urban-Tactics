@@ -59,49 +59,6 @@ function get_ui()
     return GUI
 end
 
-function key_callback_time_event()
-	local obj = db.actor:active_detector()
-	if (obj and SYS_GetParam(0,obj:section(),"custom_ui_func") == custom_ui_func) then
-		key_callback(true)
-		return false
-	end
-	key_callback(false)
-	DEBUG("key_callback_time_event")
-	return true
-end
-
-local key_callback_flag = false
-
-function key_callback(flag)
-	if (flag) then
-		if (key_callback_flag ~= true) then
-			key_callback_flag = true
-			DEBUG("key_callback_flag = %s",key_callback_flag)
-			RegisterScriptCallback("on_key_press",on_key_press)
-		end
-	else
-		if (key_callback_flag == true) then
-			key_callback_flag = false
-			DEBUG("key_callback_flag = %s",key_callback_flag)
-			UnregisterScriptCallback("on_key_press",on_key_press)
-		end
-	end
-end
-
-function on_key_press(dik)
-	if (GUI) then
-		GUI:OnKeyPress(dik)
-	end
-end
-
-function on_game_start()
-	RegisterScriptCallback("on_key_press",on_key_press)
-end
-
-function actor_on_item_use(obj,sec)
-	DEBUG()
-end
-
 -- ---------------------------------------------------------------------------------------------------------------------
 -- UI Class
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -198,11 +155,6 @@ function UIPhoneNokia:__finalize()
     GUI = nil
 end
 
-function UIPhoneNokia:Reset()
-	self.phone_number = nil
-	self:TriggerReset()
-end
-
 function UIPhoneNokia:ShouldUpdate()
     local tg = time_global()
     if tg < self.m_update_timer then
@@ -216,15 +168,26 @@ end
 function UIPhoneNokia:Update()
 
     CUIScriptWnd.Update(self)
+	local obj = db.actor:active_detector()
+	if not (obj and SYS_GetParam(0,obj:section(),"custom_ui_func") == custom_ui_func) then
+		return
+	end
 
     if not self:ShouldUpdate() then
         return
     end
 	
+	if (self.time_event_flag ~= true) then
+		self.time_event_flag = true
+		hud_active()
+		RegisterScriptCallback("on_key_press",self)
+		CreateTimeEvent(AC_ID,"UIPhoneNokia",0,self.OnDeviceHide,self)
+	end
+	
 	if (self.trigger) then
 		self:TriggerUpdate()
 	end
-
+	
     -- Update connectivity
     self:UpdateSignal()
     self:UpdateSignalTextures()
@@ -277,18 +240,24 @@ function UIPhoneNokia:UpdateTimeOfDayTextures()
 end
 
 function UIPhoneNokia:UpdateDial()
-	if (self.phone_number == nil) then
+	local str = self.phone_number and tostring(self.phone_number)
+	if not (str) then
 		for i,k in ipairs(self.m_dial_slots) do
 			k:Show(false)
 		end
 		return
 	end
-	local str = tostring(self.phone_number)
+	
+	local num = {}
+	for i=1,#str do
+		num[#num+1] = tonumber(string.sub(str,i,i))
+	end
+	num[#num+1] = 0
+	
 	for i,k in ipairs(self.m_dial_slots) do
-		local dit = (i <= #str) and tonumber(string.sub(str,i,i))
-		local num = dit or (i <= 10) and 0
-		if (num) then
-			k:InitTextureEx(NUMBER_TO_DIGIT[num],[[hud\p3d]])
+		local idx = num[i]
+		if (idx) then
+			k:InitTextureEx(NUMBER_TO_DIGIT[idx],[[hud\p3d]])
 			k:Show(true)
 		else
 			k:Show(false)
@@ -299,21 +268,29 @@ end
 --[[----------------------------------------------------------------------------------------------------
 	Detonator
 ------------------------------------------------------------------------------------------------------]]
-function UIPhoneNokia:OnKeyPress(dik)
+function UIPhoneNokia:OnDeviceHide()
+	local obj = db.actor:active_detector()
+	if (obj and SYS_GetParam(0,obj:section(),"custom_ui_func") == custom_ui_func) then
+		return false
+	end
+	self.time_event_flag = false
+	hud_remove()
+	UnregisterScriptCallback("on_key_press",self)
+	return true
+end
+
+function UIPhoneNokia:on_key_press(dik)
 	if (dik == KEY_NEXT) then
-		DEBUG("KEY_NEXT")
 		self:TriggerChangeNumber(true)
 	end
 	if (dik == KEY_BACK) then
-		DEBUG("KEY_BACK")
 		self:TriggerChangeNumber(false)
 	end
 	if (dik == KEY_CALL) then
-		DEBUG("KEY_CALL")
 		self:TriggerStart()
 	end
 	if (dik == KEY_RESET) then
-		self:Reset()
+		self:TriggerReset()
 	end
 end
 
@@ -328,7 +305,7 @@ function UIPhoneNokia:TriggerChangeNumber(flag)
 	for _,oid in ipairs(IED_MGR:ActorOwn()) do
 		local k = IED_MGR:StorageById(oid)
 		if (k and k.num) then
-			tbl[#tbl+1] = {oid = oid,num = num}
+			tbl[#tbl+1] = {oid = oid,num = k.num}
 			if (self.selected_ied == oid) then
 				-- idx of selected ied in tbl.
 				idx = #tbl
@@ -336,7 +313,6 @@ function UIPhoneNokia:TriggerChangeNumber(flag)
 		end
 	end
 	
-	DEBUG("[%s]",idx)
 	-- Pick idx from tbl.
 	if (idx) then
 		if (flag) then
@@ -355,7 +331,6 @@ function UIPhoneNokia:TriggerChangeNumber(flag)
 		self.selected_ied = tmp.oid
 		self.phone_number = tmp.num
 	end
-	DEBUG("[%s] num:%s",idx,self.phone_number)
 end
 
 function UIPhoneNokia:TriggerStart()
@@ -395,6 +370,87 @@ function UIPhoneNokia:TriggerUpdate()
 			self:TriggerReset()
 		end
 	end
+end
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- HUD
+-- ---------------------------------------------------------------------------------------------------------------------
+HUD = nil
+
+function hud_active()
+	if (HUD == nil) then
+		HUD = HUDNokia()
+		get_hud():AddDialogToRender(HUD)
+	end
+end
+
+function hud_remove()
+	if (HUD) then
+		get_hud():RemoveDialogToRender(HUD)
+		HUD = nil
+	end
+end
+
+function hud_update()
+	if (HUD) then
+		HUD:Update(true)
+	end
+end
+
+class "HUDNokia" (CUIScriptWnd)
+function HUDNokia:__init() super()
+	self:SetAutoDelete(true)
+    self.xml = CScriptXmlInit()
+    self.xml:ParseFile("ui_phone_nokia.xml")
+	
+	self.clr = utils_xml.get_color("d_orange",true)
+	self.marker_ied = self.xml:InitStatic("hud:marker_ied",self)
+	self:ApplyScreenRatio(self.marker_ied)
+end
+
+function HUDNokia:__finalize()
+end
+
+function HUDNokia:Update()
+	CUIScriptWnd.Update(self)
+	
+	local obj = GUI and object_by_id(GUI.selected_ied)
+	local vec = obj and self:GetScreenPosition(obj:center())
+	if (vec) and (obj:condition() > 0) then
+		self.marker_ied:SetWndPos(vec)
+		self.marker_ied:SetTextureColor(self.clr)
+		self.marker_ied:Show(true)
+	else
+		self.marker_ied:Show(false)
+	end
+end
+
+function HUDNokia:GetScreenPosition(pos)
+	local vec = game.world2ui(pos,false,false)
+	return self:ScreenPosValid(vec) and vec
+end
+
+function HUDNokia:ScreenPosValid(vec)
+	return vec and (vec.x ~= -9999) and (vec.y ~= 0) and (vec.x <= 1024) and (vec.y <= 768)
+end
+
+function HUDNokia:ApplyScreenRatio(ele)
+	local r = (1024/768)/(device().width/device().height)
+	ele:SetWndSize(vector2():set(ele:GetWidth() * r,ele:GetHeight()))
+end
+
+function on_show_hide()
+	hud_update()
+end
+
+function actor_on_net_destroy()
+	hud_remove()
+end
+
+function on_game_start()
+	RegisterScriptCallback("GUI_on_show",on_show_hide)
+	RegisterScriptCallback("GUI_on_hide",on_show_hide)
+	RegisterScriptCallback("actor_on_net_destroy",actor_on_net_destroy)
 end
 
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -444,6 +500,10 @@ function get_digits_as_textures(prefix, ...)
         end
     end
     return unpack(textures)
+end
+
+function object_by_id(id)
+	return id and (db.storage[id] and db.storage[id].object or level.object_by_id(id))
 end
 
 function DEBUG(str,...)

@@ -107,7 +107,7 @@
  
 [sprite]
         shader                           = particles\alpha_add
-        texture                          = crysis_3\glow_a
+        texture                          = fx\ied\glow_a
  
 [timelimit]
         value                            = 0.100000
