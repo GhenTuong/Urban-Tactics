@@ -1,13 +1,10 @@
 <?xml version="1.0" encoding="windows-1251"?>
 <string_table>
 	<string id="st_defuse">
-		<text>Defuse (require Swiss knife or Multitool)</text>
+		<text>Defuse ($$ACTION_USE$$)</text>
 	</string>
 	<string id="st_ied_remote">
 		<text>plant with remote trigger</text>
-	</string>
-	<string id="st_scavenge_explosive">
-		<text>scavenge explosive [!]</text>
 	</string>
 	
 <!------------------------------------------------------------------------------------------------------
@@ -99,7 +96,7 @@
 		%c[d_purple] • %c[ui_gray_2] blast power: %c[ui_gray_1]high\n
 		%c[d_purple] • %c[ui_gray_2] blast radius: %c[ui_gray_1]7.8 m\n
 		%c[d_purple] • %c[ui_gray_2] fragments' radius: %c[ui_gray_1]56 m\n
-		%c[d_purple] • %c[ui_gray_2] av. number of fragments: %c[ui_gray_1]440 (shrapnel)\n
+		%c[d_purple] • %c[ui_gray_2] av. number of fragments: %c[ui_gray_1]100 (shrapnel)\n
 		%c[d_purple] • %c[ui_gray_2] explosion delay: %c[ui_gray_1]none\n
 		</text>
 	</string>
@@ -116,9 +113,8 @@
 		%c[d_purple] • %c[ui_gray_2] triggering mechanism: %c[ui_gray_1]proximity\n
 		%c[d_purple] • %c[ui_gray_2] blast power: %c[ui_gray_1]very high\n
 		%c[d_purple] • %c[ui_gray_2] blast radius: %c[ui_gray_1]12.9 m\n
-		%c[d_purple] • %c[ui_gray_2] fragments radius: 
-		%c[ui_gray_1]74 m\n
-		%c[d_purple] • %c[ui_gray_2] av. number of fragments: %c[ui_gray_1]580 (steel balls)\n
+		%c[d_purple] • %c[ui_gray_2] fragments' radius: %c[ui_gray_1]74 m\n
+		%c[d_purple] • %c[ui_gray_2] av. number of fragments: %c[ui_gray_1]100 (shrapnel)\n
 		%c[d_purple] • %c[ui_gray_2] explosion delay: %c[ui_gray_1]none\n
 		</text>
 	</string>
@@ -135,7 +131,8 @@
 		%c[d_purple] • %c[ui_gray_2] triggering mechanism: %c[ui_gray_1]remote\n
 		%c[d_purple] • %c[ui_gray_2] Blast power: %c[ui_gray_1]massive\n
 		%c[d_purple] • %c[ui_gray_2] Blast radius: %c[ui_gray_1]10 m\n
-		%c[d_purple] • %c[ui_gray_2] No shrapnels.\n
+		%c[d_purple] • %c[ui_gray_2] fragments' radius: %c[ui_gray_1]56 m\n
+		%c[d_purple] • %c[ui_gray_2] av. number of fragments: %c[ui_gray_1]100 (shrapnel)\n
 		%c[d_purple] • %c[ui_gray_2] explosion delay: %c[ui_gray_1]none\n
 		</text>
 	</string>

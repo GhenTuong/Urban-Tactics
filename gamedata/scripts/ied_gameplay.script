@@ -127,7 +127,7 @@ function CIedManager:Create(prs,actor_own)
 	local num = prs and prs.num
 	if (sec and pos and vid and gid and ang and self:BlowToItem(sec)) then
 		local se = alife_create(sec,pos,vid,gid)
-		se.angle = ang
+		se.angle = vector():set(ang.y,ang.x,ang.z)
 		local k = {}
 		k.num = num
 		if (fix) then
@@ -281,6 +281,12 @@ function hud_deploy_update()
 	end
 end
 
+function on_key_press(dik)
+	if (HUD) then
+		HUD:OnKeyPress(dik)
+	end
+end
+
 class "UIDeploy" (CUIScriptWnd)
 function UIDeploy:__init(obj) super(obj)
 	self:SetWndRect(Frect():set(0,0,1280,768))
@@ -356,24 +362,23 @@ function UIDeploy:Deploy()
 		return
 	end
 	local atm = db.actor:get_attachment(self.atm_name)
-	if not (atm) then
+	local xfm = atm and atm:get_transform()
+	if not (xfm) then
 		return
 	end
-	
 	local obj = object_by_id(self.oid)
 	local k = {}
 	k.sec = IED_MGR:ItemToBlow(obj:section())
-	k.pos = vector():set(atm:get_transform().c)
+	k.pos = vector():set(xfm.c)
 	k.vid = db.actor:level_vertex_id()
 	k.gid = db.actor:game_vertex_id()
-	k.ang = atm:get_transform():getHPB()
+	k.ang = xfm:getHPB()
 	k.fix = self.dir and true or false
 	k.num = generate_phone_number()
 	if (IED_MGR:Create(k,true)) then
 		news_manager.relocate_item(db.actor,"out",obj:section())
 		alife_release(obj)
 	end
-	
 	self:ResumeActive()
 	return self:Close()
 end
@@ -408,7 +413,6 @@ function UIDeploy:GetDeployRotation()
 		local num = self:RayPick(tmp,dir,1)
 		t[i] = (num > 0) and vector():mad(tmp,dir,num)
 	end
-	
 	if (t[1] and t[2] and t[3] and t[4]) then
 		local horz = vector():sub(t[2],t[1])
 		local vert = vector():sub(t[4],t[3])
@@ -439,14 +443,12 @@ function UIDeploy:Close()
 	hud_deploy_remove()
 end
 
-function on_key_press(dik)
-	if (HUD) then
-		if (dik == DIK_keys.MOUSE_1) then
-			HUD:Deploy()
-		end
-		if (dik == DIK_keys.MOUSE_2) then
-			HUD:Cancel()
-		end
+function UIDeploy:OnKeyPress(dik)
+	if (dik == DIK_keys.MOUSE_1) then
+		return self:Deploy()
+	end
+	if (dik == DIK_keys.MOUSE_2) then
+		return self:Cancel()
 	end
 end
 

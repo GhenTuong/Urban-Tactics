@@ -3,32 +3,19 @@
 	Discord: GhenTuong#1278
 	Twitter: https://twitter.com/GhenTuong
 --]]
-
-function DEBUG(str,...)
-	local func = debug.getinfo(2,"S").source
-	local line = debug.getinfo(2,"l").currentline
-	func = string.sub(func,#func - string.find(string.reverse(func),"\\") + 2,#func)
-	local p = {...}
-	if (p and (#p ~= 0)) then
-		printf(string.format("[GhenTuong] %s:%s | %s",tostring(func),tostring(line),str),...)
-	else
-		printf(string.format("[GhenTuong] %s:%s | ",tostring(func),tostring(line)) .. "%s",str)
-	end
-end
-
 local GT = game.translate_string
 
-function tss()
-	return game.get_game_time():diffSec(level.get_start_time())
+--[[----------------------------------------------------------------------------------------------------
+	Utilities
+------------------------------------------------------------------------------------------------------]]
+function object_by_id(id)
+	return id and (db.storage[id] and db.storage[id].object or level.object_by_id(id))
 end
 
-function same_faction_witness_see_victim(npc,p)
-	if not (npc and p) then
-		return false
-	end
-	for i,v in pairs() do
-		
-	end
+function cam_xform()
+	local pos = device().cam_pos
+	local dir = device().cam_dir
+	return matrix():setHPB(dir:getH(),dir:getP(),0):translate_over(pos)
 end
 
 --[[----------------------------------------------------------------------------------------------------
@@ -84,7 +71,7 @@ end
 
 -- Mine is defused.
 function TimeEvent_use_callback(oid)
-	local obj = level.object_by_id(oid)
+	local obj = object_by_id(oid)
 	local sec = obj and get_section_tool(obj:section())
 	if (sec) then
 		alife_create_item(sec,db.actor)
@@ -103,7 +90,7 @@ end
 
 -- Mine spawns explosive.
 function TimeEvent_exp_callback(oid)
-	local obj = level.object_by_id(oid)
+	local obj = object_by_id(oid)
 	local sec = obj and SYS_GetParam(0,obj:section(),"mine_attachment_section")
 	if (sec and ini_sys:section_exist(sec)) then
 		sound_object(CHECKOUT_SND):play_no_feedback(obj,sound_object.s3d,0,obj:position(),1,1)
@@ -114,282 +101,271 @@ function TimeEvent_exp_callback(oid)
 end
 
 function actor_on_item_use(obj)
-	if (TOOL_SECTION[obj:section()]) then
+	if (deploy_condition() and TOOL_SECTION[obj:section()]) then
 		if (HUD) then
-			HUD:Close(true)
-		else
-			hud_active(obj:section())
+			HUD:Close()
 		end
+		hud_deploy_active(obj)
 	end
+end
+
+function deploy_condition()
+	if not (db.actor:alive()) then
+		return false
+	end
+	if (db.actor:get_attached_vehicle()) then
+		return false
+	end
+	if (db.actor:is_talking()) then
+		return false
+	end
+	if (IsMoveState("mcClimb")) then
+		return false
+	end
+	return true
+end
+
+function create_mine(prs)
+	local sec = prs and prs.sec
+	local pos = prs and prs.pos
+	local vid = prs and prs.vid
+	local gid = prs and prs.gid
+	local ang = prs and prs.ang
+	if (sec and pos and vid and gid and ang) then
+		local se = alife_create(sec,pos,vid,gid)
+		se.angle = vector():set(ang.y,ang.x,ang.z)
+		return true
+	end
+	DEBUG("Wrong parameters %s %s %s %s %s",sec,pos,vid,gid,ang)
+	return false
 end
 
 --[[----------------------------------------------------------------------------------------------------
-	HUD
+	UIDeploy
 ------------------------------------------------------------------------------------------------------]]
 HUD = nil
 
-function hud_active(section)
+function hud_deploy_active(obj)
 	if (HUD == nil) then
-		HUD = CMineDeploy(section)
+		HUD = UIDeploy(obj)
 		get_hud():AddDialogToRender(HUD)
+		RegisterScriptCallback("on_key_press",on_key_press)
 	end
 end
 
-function hud_remove()
+function hud_deploy_remove()
 	if (HUD) then
 		get_hud():RemoveDialogToRender(HUD)
 		HUD = nil
+		UnregisterScriptCallback("on_key_press",on_key_press)
 	end
 end
 
-function hud_update()
+function hud_deploy_update()
 	if (HUD) then
 		HUD:Update(true)
 	end
 end
 
-class "CMineDeploy" (CUIScriptWnd)
-function CMineDeploy:__init(section) super(section)
-	self.sec = section
-	self.particle_head = particles_object([[_samples_particles_\laying_mine_indicator]])
-	self.particle_tail = particles_object([[_samples_particles_\laying_mine_indicator]])
+function on_key_press(dik)
+	if (HUD) then
+		HUD:OnKeyPress(dik)
+	end
+end
+
+class "UIDeploy" (CUIScriptWnd)
+function UIDeploy:__init(obj) super(obj)
+	self:SetWndRect(Frect():set(0,0,1280,768))
+	self:SetAutoDelete(true)
 	
-	self.position_head = nil
-	self.position_tail = nil
+	self.oid = obj:id()
+	self.sec = obj:section()
+	self.vis = self:GetAttachmentVisual(obj)
+	self.atm_name = "deploy_mine"
+	self.dist_def = 1
+	self.dist_max = 3
+	self.horz_min = 1
+	self.horz_max = 2
 	
-	self.mine_length = 2.0
+	self.exclusive_radius = 0.4
+	self.exclusive_height = 0.05
+	self.vec_up = vector():set(VEC_Y)
+	self.vec_dw = vector():set(self.vec_up):invert()
 	
-	self.resume_slot = db.actor:active_slot()
+	self.rotation = 0
+	
+	self.active = db.actor:active_slot()
+	self.hiding = (self.active ~= 0) and true or false
 	db.actor:activate_slot(0)
 	hide_hud_inventory()
 end
 
-function CMineDeploy:__finalize()
+function UIDeploy:__finalize()
 end
 
-function CMineDeploy:Update()
+function UIDeploy:Update()
 	CUIScriptWnd.Update(self)
 	
-	if not (db.actor:alive()) then
-		return self:Close(false)
-	end
-	if (db.actor:get_current_holder()) then
-		return self:Close(false)
-	end
-	if (db.actor:is_talking()) then
-		return self:Close(false)
+	if not (main_hud_shown()) then
+		return self:Close()
 	end
 	
-	--[[
-	if (db.actor:active_item()) then
-		if (self.resume_slot) then
-			self.resume_slot = nil
-		end
-	end
-	--]]
-	
-	if not (self.sec and db.actor:object(self.sec)) then
-		-- Don't have any item.
-		return self:Close(false)
+	if not (deploy_condition()) then
+		return self:Close()
 	end
 	
-	if (self.position_head) then
-		self:UpdateParticle(self.particle_head,self.position_head)
-		if (self.position_head:distance_to_xz(db.actor:position()) > 10) then
-			-- Too far.
-			return self:Close(true)
+	if not (object_by_id(self.oid)) then
+		return self:Close()
+	end
+	
+	if not (self.vis) then
+		return self:Close()
+	end
+	
+	if (self.hiding) then
+		if (db.actor:active_slot() == 0) then
+			self.hiding = false
+		elseif (db.actor:active_slot() ~= self.active) then
+			return self:Close()
 		end
 	else
-		self:UpdateParticle(self.particle_head,self:GetPositionHead())
+		if (db.actor:active_slot() ~= 0) then
+			return self:Close()
+		end
 	end
 	
-	if (self.position_head) then
-		self:UpdateParticle(self.particle_tail,self:GetPositionTail())
-	else
-		self:UpdateParticle(self.particle_tail,nil)
-	end
+	self.pos = self:GetAttachmentPosition()
+	self.dir = self:GetAttachmentRotation(self.pos)
 	
-	if (self.position_head and self.position_tail) then
-		self:CreateMine()
-		self:RemoveTool()
-		sound_object(DEPLOY_SND_1):play(db.actor,0,sound_object.s2d)
-		return self:Close(true)
-	end
-end
-
-function CMineDeploy:CreateMine()
-	local sec = get_section_mine(self.sec)
-	local pos = self.position_head
-	local vid = db.actor:level_vertex_id()
-	local gid = db.actor:game_vertex_id()
-	if not (sec and ini_sys:section_exist(sec)) then
-		return
-	end
-	local se = alife_create(sec,pos,vid,gid)
-	local dir = vector():sub(self.position_tail,self.position_head):normalize()
-	local pit = -dir:getP()
-	local yaw = (dir:getH() > 0) and (dir:getH() + math.pi) or (dir:getH() - math.pi)
-	se.angle = vector():set(pit,yaw,0)
-end
-
-function CMineDeploy:RemoveTool()
-	local itm = db.actor:object(self.sec)
-	if (itm) then
-		alife_release(itm)
-	end
-end
-
-function CMineDeploy:UpdateParticle(ele,pos)
-	if not (ele) then
-		return
-	end
-	if (pos) then
-		local vec = vector():set(pos)
-		vec.y = vec.y + 0.3
-		ele:set_position(vec)
-		if (ele:playing() ~= true) then
-			ele:play()
+	if (self.pos and self.dir) then
+		if (db.actor:get_attachment(self.atm_name) == nil) then
+			db.actor:add_attachment(self.atm_name,self.vis):set_type(script_attachment_type.CamAttached)
+		end
+		local atm = db.actor:get_attachment(self.atm_name)
+		if (atm) then
+			atm:set_position(self.pos)
+			local h = 180
+			local p = math.deg(device().cam_dir:getP()) - math.deg(self.dir:getP())
+			local b = self.rotation
+			atm:set_rotation(h,p,b)
 		end
 	else
-		if (ele:playing() == true) then
-			ele:stop()
+		if (db.actor:get_attachment(self.atm_name)) then
+			db.actor:remove_attachment(self.atm_name)
 		end
 	end
 end
 
-function CMineDeploy:Deploy()
-	if (self.position_head == nil) then
-		local pos = self:GetPositionHead()
-		if (pos) then
-			self.position_head = pos
-			sound_object(DEPLOY_SND_2):play(db.actor,0,sound_object.s2d)
-		end
+function UIDeploy:Deploy()
+	if (self.hiding) then
 		return
 	end
-	if (self.position_tail == nil) then
-		self.position_tail = self:GetPositionTail()
+	if (self:CheckDeployPosition() == false) then
 		return
 	end
+	local atm = db.actor:get_attachment(self.atm_name)
+	local xfm = atm and atm:get_transform()
+	if not (xfm) then
+		return
+	end
+	local obj = object_by_id(self.oid)
+	local k = {}
+	k.sec = get_section_mine(obj:section())
+	k.pos = vector():set(xfm.c)
+	k.vid = db.actor:level_vertex_id()
+	k.gid = db.actor:game_vertex_id()
+	k.ang = xfm:getHPB()
+	if (create_mine(k)) then
+		news_manager.relocate_item(db.actor,"out",obj:section())
+		alife_release(obj)
+	end
+	self:ResumeActive()
+	return self:Close()
 end
 
-function CMineDeploy:Cancel()
-	if (self.position_tail) then
-		return
-	end
-	if (self.position_head) then
-		self.position_head = nil
-		return
-	end
-	return self:Close(true)
+function UIDeploy:Rotate(klockwise)
+	local num = klockwise and -10 or 10
+	self.rotation = clamp(self.rotation + num,-90,90)
 end
 
-function CMineDeploy:GetPositionHead()
-	return self:GetLookPosition(DEPLOY_RANGE)
+function UIDeploy:GetAttachmentVisual(obj)
+	local sec = obj and get_section_mine(obj:section())
+	return sec and SYS_GetParam(0,sec,"visual")
 end
 
-function CMineDeploy:GetPositionTail()
-	if not (self.position_head) then
-		return
-	end
-	
-	local tmp = self:GetLookPosition(DEPLOY_RANGE)
-	if not (tmp and (tmp:distance_to_xz(self.position_head) > 0.2)) then
-		return
-	end
-	
-	local vec = vector():set(self.position_head)
-	vec.y = vec.y + 0.2
-	local dir = vector():sub(tmp,self.position_head):normalize()
-	local top = vector():mad(vec,dir,self.mine_length)
-	local pos = self:GetDownPosition(top,1)
-	if not (pos and (pos:distance_to_xz(db.actor:position()) < DEPLOY_RANGE)) then
-		return
-	end
-	
-	local dir = vector():sub(pos,self.position_head):normalize()
-	if not (math.abs(dir:getP()) < math.rad(30)) then
-		return
-	end
-	
-	local length = pos:distance_to(self.position_head)
-	if not (self:IsDirectionClear(vec,dir,length)) then
-		return
-	end
-	
-	return pos
-end
-
-function CMineDeploy:GetLookPosition(range)
+function UIDeploy:GetAttachmentPosition()
 	local pos = device().cam_pos
 	local dir = device().cam_dir
-	local tmp = self:RayCast(pos,dir,range*2,2)
-	local vec = (tmp > 0) and vector():mad(pos,dir,tmp)
-	if (vec and (vec:distance_to_xz(db.actor:position()) < range)) then
-		return vec
-	end
-end
-
-function CMineDeploy:IsDirectionClear(pos,dir,range)
-	local pos = vector():add(self.position_head,vector():set(0,0.15,0))
-	local tmp = self:RayCast(pos,dir,range,2)
-	return (tmp < 0)
-end
-
-function CMineDeploy:GetDownPosition(vec,offset)
-	local pos = vector():set(vec)
-	pos.y = pos.y + 0.01
-	local dir = vector():set(0,-1,0)
-	local tmp = self:RayCast(pos,dir,offset,2)
-	return (tmp > 0) and vector():mad(pos,dir,tmp)
-end
-
-function CMineDeploy:RayCast(pos,dir,range,flag,obj)
-	local ray = ray_pick(pos,dir,range,flag,obj or db.actor)
-	if (ray:query()) then
-		return ray:get_distance()
-	end
-	return -1
-end
-
-function CMineDeploy:Close(need_resume_slot)
-	--DEBUG("CMineDeploy:Close()")
-	if (need_resume_slot and tonumber(self.resume_slot)) then
-		db.actor:activate_slot(tonumber(self.resume_slot))
-	end
-	
-	self:UpdateParticle(self.particle_head,nil)
-	self.particle_head = nil
-	self:UpdateParticle(self.particle_tail,nil)
-	self.particle_tail = nil
-	
-	hud_remove()
-end
-
-function on_key_press(dik)
-	if (HUD == nil) then
+	if (dir:getP() > 0) then
 		return
 	end
-	
-	if (dik == DIK_keys.DIK_ESCAPE) then
-		return HUD:Close(false)
+	local ray = ray_pick(pos,dir,self.dist_max,2,db.actor)
+	local vec = ray:query() and vector():set(0,0,ray:get_distance())
+	if (vec) then
+		local tmp = vector():set(vec)
+		cam_xform():transform_tiny(tmp)
+		local dis = db.actor:position():distance_to_xz_sqr(tmp)
+		if (dis > math.pow(self.horz_min,2)) and (dis < math.pow(self.horz_max,2)) then
+			return vec
+		end
 	end
-	
-	local key = dik_to_bind(dik)
+end
 
-	if (urban_tactics_option_mcm and urban_tactics_option_mcm.OPT_PLAN_MINE_KEY) then
-		if (key == key_bindings.kWPN_FUNC) then
-			return HUD:Deploy()
-		end
-		if (key == key_bindings.kWPN_RELOAD) then
-			return HUD:Cancel()
-		end
-	else
-		if (key == key_bindings.kWPN_FIRE) then
-			return HUD:Deploy()
-		end
-		if (key == key_bindings.kWPN_ZOOM) then
-			return HUD:Cancel()
-		end
+function UIDeploy:GetAttachmentRotation(pos)
+	if not (pos) then
+		return
+	end
+	local src = vector():set(pos)
+	cam_xform():transform_tiny(src)
+	local tmp = vector():set(src):add(vector():set(0,0.5,0))
+	local dir = vector():setHP(device().cam_dir:getH() + math.rad(self.rotation),0):normalize()
+	local ray = ray_pick(tmp,dir,2,3,db.actor)
+	if (ray:query()) then
+		return
+	end
+	local vec = vector():mad(tmp,dir,2)
+	local ray = ray_pick(vec,self.vec_dw,1,2,db.actor)
+	if not (ray:query()) then
+		return
+	end
+	local dst = vector():mad(vec,self.vec_dw,ray:get_distance())
+	return vector():sub(dst,src):normalize()
+end
+
+function UIDeploy:CheckDeployPosition()
+	return true
+end
+
+function UIDeploy:ResumeActive()
+	if (self.active ~= 0) then
+		db.actor:activate_slot(self.active)
+	end
+end
+
+function UIDeploy:Cancel()
+	self:ResumeActive()
+	return self:Close()
+end
+
+function UIDeploy:Close()
+	if (db.actor:get_attachment(self.atm_name)) then
+		db.actor:remove_attachment(self.atm_name)
+	end
+	hud_deploy_remove()
+end
+
+function UIDeploy:OnKeyPress(dik)
+	if (dik == DIK_keys.MOUSE_1) then
+		return self:Deploy()
+	end
+	if (dik == DIK_keys.MOUSE_2) then
+		return self:Cancel()
+	end
+	if (dik == DIK_keys.DIK_R) then
+		return self:Rotate(false)
+	end
+	if (dik == DIK_keys.DIK_T) then
+		return self:Rotate(true)
 	end
 end
 
@@ -409,7 +385,7 @@ function CMineBinder:__init(obj) super(obj)
 	-- Physic object.
 	self.defuse		= false
 	self.defuse_use = SYS_GetParam(0,section,"mine_defuse_use","false") == "true" and true or false
-	self.defuse_tip = "st_defuse"
+	self.defuse_tip = SYS_GetParam(0,section,"mine_defuse_tip","st_defuse")
 	
 	self.fc_timer = nil
 	self.fc_delay = 100
@@ -449,14 +425,10 @@ function CMineBinder:use_callback(obj,who)
 	if (obj:position():distance_to_sqr(who:position()) > math.pow(DEFUSE_RANGE,2)) then
 		return
 	end
-	if (db.actor:object("swiss_knife"))
-	or (db.actor:object("leatherman_tool")) then
-		CreateTimeEvent(obj:id(),"TimeEvent_use_callback",0,TimeEvent_use_callback,obj:id())
-	end
+	CreateTimeEvent(obj:id(),"TimeEvent_use_callback",0,TimeEvent_use_callback,obj:id())
 end
 
 function CMineBinder:hit_callback(obj,power,dir,who,bone_id)
-	--DEBUG("%s %s %s",obj and obj:name(),who and who:name(),power)
 	CreateTimeEvent(obj:id(),"TimeEvent_exp_callback",0,TimeEvent_exp_callback,obj:id())
 end
 
@@ -583,11 +555,11 @@ end
 	Callbacks
 ------------------------------------------------------------------------------------------------------]]
 function on_show_hide()
-	hud_update()
+	hud_deploy_update()
 end
 
 function actor_on_net_destroy()
-	hud_remove()
+	hud_deploy_remove()
 end
 
 --[[----------------------------------------------------------------------------------------------------
@@ -598,5 +570,16 @@ function on_game_start()
 	RegisterScriptCallback("GUI_on_hide",on_show_hide)
 	RegisterScriptCallback("actor_on_net_destroy",actor_on_net_destroy)
 	RegisterScriptCallback("actor_on_item_use",actor_on_item_use)
-	RegisterScriptCallback("on_key_press",on_key_press)
+end
+
+function DEBUG(str,...)
+	local func = debug.getinfo(2,"S").source
+	local line = debug.getinfo(2,"l").currentline
+	func = string.sub(func,#func - string.find(string.reverse(func),"\\") + 2,#func)
+	local p = {...}
+	if (p and (#p ~= 0)) then
+		printf(string.format("[GhenTuong] %s:%s | %s",tostring(func),tostring(line),str),...)
+	else
+		printf(string.format("[GhenTuong] %s:%s | ",tostring(func),tostring(line)) .. "%s",str)
+	end
 end
