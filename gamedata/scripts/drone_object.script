@@ -9,11 +9,15 @@ local GT = game.translate_string
 _G.AddScriptCallback("drone_on_net")
 _G.AddScriptCallback("drone_on_death")
 
-function _G.IsDrone(obj,sec)
-	if (obj and IsCar(obj)) then
-		sec = obj.section and obj:section() or obj:section_name()
+function _G.IsDrone(obj)
+	if not (obj and IsCar(obj)) then
+		return false
 	end
-	return sec and (SYS_GetParam(0,sec,"kind") == "v_drone")
+	local sec = obj.section and obj:section() or obj:section_name()
+	if not (DRONE_MGR:IsDrone(sec)) then
+		return false
+	end
+	return true
 end
 
 --[[----------------------------------------------------------------------------------------------------
@@ -58,25 +62,17 @@ function actor_on_first_update()
 end
 
 function server_entity_on_register(se,flag)
-	if not (flag == "se_car") then
-		return
-	end
-	if not (SYS_GetParam(0,se:section_name(),"kind") == "v_drone") then
-		return
-	end
-	if (db.drones_data_storage[se.id] == nil) then
-		db.drones_data_storage[se.id] = {}
+	if (flag == "se_car") and (DRONE_MGR:IsDrone(se:section_name())) then
+		if (db.drones_data_storage[se.id] == nil) then
+			db.drones_data_storage[se.id] = {}
+		end
 	end
 end
 
 function server_entity_on_unregister(se,flag)
-	if not (flag == "se_car") then
-		return
+	if (flag == "se_car") and (DRONE_MGR:IsDrone(se:section_name())) then
+		db.drones_data_storage[se.id] = nil
 	end
-	if not (SYS_GetParam(0,se:section_name(),"kind") == "v_drone") then
-		return
-	end
-	db.drones_data_storage[se.id] = nil
 end
 
 function save_state(m_data)
