@@ -38,7 +38,7 @@ use4_action_functor         = ied_gameplay.remote_func
 can_trade					= false
 
 [ied_chinese_blow]:explosive_barrel,grenade_explosive_charge
-kind						= i_tool
+kind						= e_ied
 class						= S_EXPLO
 script_binding				= ied_gameplay.init
 visual						= dynamics\weapons\mine\ied_chinese.ogf
@@ -74,6 +74,7 @@ use4_functor                = ied_gameplay.remote_desc
 use4_action_functor         = ied_gameplay.remote_func
 
 ![rpg_new_blow]
+kind						= e_ied
 class						= S_EXPLO
 script_binding				= ied_gameplay.init
 visual						= dynamics\weapons\mine\ied_rpg.ogf
@@ -85,7 +86,14 @@ can_take					= true
 snd_explode					= wpn_fake_og-7b_explode
 explode_particles			= explosions\explosion_ied
 
+frag_hit                    = 0.05
+frag_hit_impulse            = 50
+frags                       = 100
+frags_r                     = 20
+fragment_speed              = 200
+
 ![ied_new_blow]
+kind						= e_ied
 class						= S_EXPLO
 script_binding				= ied_gameplay.init
 visual						= dynamics\weapons\mine\ied_bottle.ogf
@@ -96,3 +104,9 @@ cost						= 0
 can_take					= true
 snd_explode					= wpn_fake_og-7b_explode
 explode_particles			= explosions\explosion_ied
+
+frag_hit                    = 0.05
+frag_hit_impulse            = 50
+frags                       = 100
+frags_r                     = 20
+fragment_speed              = 200

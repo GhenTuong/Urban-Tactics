@@ -5,16 +5,17 @@
 ------------------------------------------------------------------------------------------------------]]
 local GT = game.translate_string
 
-KEY_DEPLOY_DEF = DIK_keys.DIK_J
-KEY_CANCEL_DEF = DIK_keys.DIK_K
-KEY_DEPLOY = KEY_DEPLOY_DEF
-KEY_CANCEL = KEY_CANCEL_DEF
-
 --[[----------------------------------------------------------------------------------------------------
 	Utilities
 ------------------------------------------------------------------------------------------------------]]
 function object_by_id(id)
 	return id and (db.storage[id] and db.storage[id].object or level.object_by_id(id))
+end
+
+function cam_xform()
+	local pos = device().cam_pos
+	local dir = device().cam_dir
+	return matrix():setHPB(dir:getH(),dir:getP(),0):translate_over(pos)
 end
 
 function display_key(dik)
@@ -30,14 +31,6 @@ function display_key(dik)
 	return ui_mcm.display_key(dik)
 end
 
-function normalize_angle(angle)
-    angle = (angle + math.pi) % (2 * math.pi)
-    if (angle < 0) then
-        angle = angle + 2 * math.pi
-    end
-    return angle - math.pi
-end
-
 --[[----------------------------------------------------------------------------------------------------
 	Manager
 ------------------------------------------------------------------------------------------------------]]
@@ -45,57 +38,97 @@ _G.DRONE_MGR = nil
 
 class "CDroneManager"
 function CDroneManager:__init()
-	self.player_drones = {}
-		
+	self.DRONE_ACT_OWN = {}
+	
+	self.cfg_item_to_drone = {}
+	self.cfg_drone_to_item = {}
+	
+	local ini = ini_file([[items\settings\deploy.ltx]])
+	if (ini:section_exist("drones")) then
+		for idx,val in pairs(utils_data.collect_section(ini,"drones",true)) do
+			if (ini_sys:section_exist(idx) and ini_sys:section_exist(val) and self:IsDrone(val)) then
+				self.cfg_item_to_drone[idx] = val
+				self.cfg_drone_to_item[val] = idx
+			else
+				DEBUG("Wrong parameters [%s] = %s | [%s] %s",idx,val,ini_sys:section_exist(idx),ini_sys:section_exist(val))
+			end
+		end
+	end
+	
 	RegisterScriptCallback("save_state",self)
 	RegisterScriptCallback("load_state",self)
 	RegisterScriptCallback("server_entity_on_unregister",self)
+	RegisterScriptCallback("actor_on_first_update",self)
 	
 	self.pickup_id = nil
 end
 
 function CDroneManager:save_state(m_data)
-	m_data.GT_PLAYER_DRONES = self.player_drones
+	m_data.GT_DRONE_ACT_OWN = self.DRONE_ACT_OWN
 end
 
 function CDroneManager:load_state(m_data)
-	self.player_drones = m_data.GT_PLAYER_DRONES or {}
+	self.DRONE_ACT_OWN = m_data.GT_DRONE_ACT_OWN or {}
 end
 
-function CDroneManager:PlayerDrones()
-	return self.player_drones
-end
-
-function CDroneManager:PlayerDroneAdd(id)
-	for i,v in ipairs(self.player_drones) do 
-		if (v == id) then 
-			return 
-		end
-	end
-	self.player_drones[#self.player_drones+1] = id
-end
-
-function CDroneManager:PlayerDroneDel(id)
-	for i,v in ipairs(self.player_drones) do 
-		if (v == id) then
-			table.remove(self.player_drones,i)
-			break
+function CDroneManager:actor_on_first_update()
+	for idx=#self.DRONE_ACT_OWN,1,-1 do
+		local id = self.DRONE_ACT_OWN[idx]
+		local se = id and alife_object(id)
+		if (se and not simulation_objects.is_on_the_actor_level(se)) then
+			if (self:IsDrone(se:section_name())) then
+				DEBUG("Release drone for not in actor level [%s]",se:name())
+				alife_release(se)
+			else
+				DEBUG("ERROR: object invalid [%s]",se:name())
+				self:ActorOwnDel(se.id)
+			end
+		else
+			DEBUG("ERROR: object does not exist")
+			self:ActorOwnDel(se.id)
 		end
 	end
 end
 
 function CDroneManager:server_entity_on_unregister(se,flag)
-	if (flag == "se_car") and (SYS_GetParam(0,se:section_name(),"kind") == "v_drone") then
-		self:PlayerDroneDel(se.id)
+	if (flag == "se_car") and (self:IsDrone(se:section_name())) then
+		DEBUG("server_entity_on_unregister(%s)",se:name())
+		self:ActorOwnDel(se.id)
 	end
 end
 
-function CDroneManager:SectionObj(sec)
-	return sec and SYS_GetParam(0,sec,"drone_section_obj")
+function CDroneManager:IsDrone(sec)
+	return sec and (SYS_GetParam(0,sec,"kind") == "v_drone") and true or false
 end
 
-function CDroneManager:SectionItm(sec)
-	return sec and SYS_GetParam(0,sec,"drone_section_itm")
+function CDroneManager:ActorOwn()
+	return self.DRONE_ACT_OWN
+end
+
+function CDroneManager:ActorOwnAdd(id)
+	for i,v in ipairs(self.DRONE_ACT_OWN) do 
+		if (v == id) then 
+			return 
+		end
+	end
+	self.DRONE_ACT_OWN[#self.DRONE_ACT_OWN+1] = id
+end
+
+function CDroneManager:ActorOwnDel(id)
+	for i,v in ipairs(self.DRONE_ACT_OWN) do 
+		if (v == id) then
+			table.remove(self.DRONE_ACT_OWN,i)
+			break
+		end
+	end
+end
+
+function CDroneManager:ItemToDrone(sec)
+	return sec and self.cfg_item_to_drone[sec]
+end
+
+function CDroneManager:DroneToItem(sec)
+	return sec and self.cfg_drone_to_item[sec]
 end
 
 function CDroneManager:Create(prs,actor_own)
@@ -104,11 +137,11 @@ function CDroneManager:Create(prs,actor_own)
 	local vid = prs and prs.vid
 	local gid = prs and prs.gid
 	local ang = prs and prs.ang
-	if (sec and pos and vid and gid and ang and IsDrone(nil,sec)) then
+	if (sec and pos and vid and gid and ang and self:IsDrone(sec)) then
 		local se = alife_create(sec,pos,vid,gid)
-		se.angle = ang
+		se.angle = vector():set(ang.y,ang.x,ang.z)
 		if (actor_own) then
-			DRONE_MGR:PlayerDroneAdd(se.id)
+			DRONE_MGR:ActorOwnAdd(se.id)
 		end
 		return true
 	end
@@ -120,7 +153,7 @@ end
 	Main
 ------------------------------------------------------------------------------------------------------]]
 function drone_deploy_desc(obj)
-	local sec = DRONE_MGR:SectionObj(obj:section())
+	local sec = DRONE_MGR:ItemToDrone(obj:section())
 	return strformat(GT("handheld_drone_deploy_desc"),ui_item.get_sec_name(sec))
 end
 
@@ -173,6 +206,12 @@ function hud_deploy_update()
 	end
 end
 
+function on_key_press(dik)
+	if (HUD) then
+		HUD:OnKeyPress(dik)
+	end
+end
+
 class "UIDeploy" (CUIScriptWnd)
 function UIDeploy:__init(obj) super(obj)
 	self:SetWndRect(Frect():set(0,0,1280,768))
@@ -184,10 +223,12 @@ function UIDeploy:__init(obj) super(obj)
 	self.atm_name = "deploy_drone"
 	self.dist_def = 1
 	self.dist_max = 3
+	self.horz_min = 1
+	self.horz_max = 2
 	
 	self.exclusive_radius = 0.4
 	self.exclusive_height = 0.05
-	self.vec_up = vector():set(0,1,0)
+	self.vec_up = vector():set(VEC_Y)
 	self.vec_dw = vector():set(self.vec_up):invert()
 	
 	self.active = db.actor:active_slot()
@@ -256,40 +297,46 @@ function UIDeploy:Deploy()
 		return
 	end
 	local atm = db.actor:get_attachment(self.atm_name)
-	if (atm) then
-		local obj = object_by_id(self.oid)
-		local k = {}
-		k.sec = DRONE_MGR:SectionObj(obj:section())
-		k.pos = vector():set(atm:get_transform().c)
-		k.vid = db.actor:level_vertex_id()
-		k.gid = db.actor:game_vertex_id()
-		k.ang = atm:get_transform():getHPB()
-		news_manager.relocate_item(db.actor,"out",obj:section())
-		if (DRONE_MGR:Create(k,true)) then
-			news_manager.relocate_item(db.actor,"out",obj:section())
-			alife_release(obj)
-		end
-		
-		self:ResumeActive()
-		return self:Close()
+	local xfm = atm and atm:get_transform()
+	if not (xfm) then
+		return
 	end
+	local obj = object_by_id(self.oid)
+	local k = {}
+	k.sec = DRONE_MGR:ItemToDrone(obj:section())
+	k.pos = vector():set(xfm.c)
+	k.vid = db.actor:level_vertex_id()
+	k.gid = db.actor:game_vertex_id()
+	k.ang = xfm:getHPB()
+	if (DRONE_MGR:Create(k,true)) then
+		news_manager.relocate_item(db.actor,"out",obj:section())
+		alife_release(obj)
+	end
+	self:ResumeActive()
+	return self:Close()
 end
 
 function UIDeploy:GetAttachmentVisual(obj)
-	local sec = obj and DRONE_MGR:SectionObj(obj:section())
+	local sec = obj and DRONE_MGR:ItemToDrone(obj:section())
 	return sec and SYS_GetParam(0,sec,"visual")
 end
 
 function UIDeploy:GetAttachmentPosition()
 	local pos = device().cam_pos
 	local dir = device().cam_dir
-	local ray = ray_pick(pos,dir,self.dist_max,2,db.actor)
-	local tmp = ray:query() and ray:get_distance() or self.dist_max
-	local ang = dir:getP()
-	if (ang > 0) then
-		tmp = math.min(tmp,self.dist_def)
+	if (dir:getP() > 0) then
+		return
 	end
-	return vector():set(0,0,math.min(tmp,self.dist_def / math.max(math.cos(ang),0.0001)))
+	local ray = ray_pick(pos,dir,self.dist_max,2,db.actor)
+	local vec = ray:query() and vector():set(0,0,ray:get_distance())
+	if (vec) then
+		local tmp = vector():set(vec)
+		cam_xform():transform_tiny(tmp)
+		local dis = db.actor:position():distance_to_xz_sqr(tmp)
+		if (dis > math.pow(self.horz_min,2)) and (dis < math.pow(self.horz_max,2)) then
+			return vec
+		end
+	end
 end
 
 function UIDeploy:CheckDeployPosition()
@@ -343,17 +390,18 @@ function UIDeploy:Cancel()
 end
 
 function UIDeploy:Close()
+	if (db.actor:get_attachment(self.atm_name)) then
+		db.actor:remove_attachment(self.atm_name)
+	end
 	hud_deploy_remove()
 end
 
-function on_key_press(dik)
-	if (HUD) then
-		if (dik == KEY_DEPLOY) then
-			return HUD:Deploy()
-		end
-		if (dik == KEY_CANCEL) then
-			return HUD:Cancel()
-		end
+function UIDeploy:OnKeyPress(dik)
+	if (dik == DIK_keys.MOUSE_1) then
+		return self:Deploy()
+	end
+	if (dik == DIK_keys.MOUSE_2) then
+		return self:Cancel()
 	end
 end
 
@@ -379,6 +427,7 @@ function on_key_release(dik)
 		drone_object.actor_give_item("ied_rpg_new")
 		drone_object.actor_give_item("ied_new")
 		drone_object.actor_give_item("device_nokia")
+		drone_object.actor_give_item("tool_tripwire_f1")
 	end
 end
 

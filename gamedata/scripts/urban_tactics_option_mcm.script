@@ -7,8 +7,8 @@ OPT_PLAN_MINE_KEY = false
 
 function on_option_change()
 	if (ui_mcm) then
-		ui_grenade_trajectory.SHOW_TRAJECTORY_GRD = ui_mcm.get("urban_tactics/opt_show_trajectory_grd")
-		ui_grenade_trajectory.SHOW_TRAJECTORY_LCH = ui_mcm.get("urban_tactics/opt_show_trajectory_lch")
+		ui_grenade_trajectory.TRAJECTORY_GRD = ui_mcm.get("urban_tactics/opt_show_trajectory_grd")
+		ui_grenade_trajectory.TRAJECTORY_LCH = ui_mcm.get("urban_tactics/opt_show_trajectory_lch")
 		
 		OPT_PLAN_MINE_KEY = ui_mcm.get("urban_tactics/opt_plan_mine_key")
 		drone_object.KEY_DETONATE = ui_mcm.get("urban_tactics/drone_key_detonate") or drone_object.KEY_DETONATE_DEF

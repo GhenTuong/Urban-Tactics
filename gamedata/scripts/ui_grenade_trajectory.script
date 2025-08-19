@@ -5,24 +5,18 @@
 	Todo:
 --]]
 
-function DEBUG(str,...)
-	local func = debug.getinfo(2,"S").source
-	local line = debug.getinfo(2,"l").currentline
-	func = string.sub(func,#func - string.find(string.reverse(func),"\\") + 2,#func)
-	local p = {...}
-	if (p and (#p ~= 0)) then
-		printf(string.format("[GhenTuong] %s:%s | %s",tostring(func),tostring(line),str),...)
-	else
-		printf(string.format("[GhenTuong] %s:%s | ",tostring(func),tostring(line)) .. "%s",str)
-	end
-end
-
-SHOW_TRAJECTORY_GRD = true
-SHOW_TRAJECTORY_LCH = true
+TRAJECTORY_GRD = true
+TRAJECTORY_LCH = true
 
 --[[----------------------------------------------------------------------------------------------------
 	Utilities
 ------------------------------------------------------------------------------------------------------]]
+function cam_xform()
+	local pos = device().cam_pos
+	local dir = device().cam_dir
+	return matrix():setHPB(dir:getH(),dir:getP(),0):translate_over(pos)
+end
+
 function get_grenade_ammo(section)
 	local str = ini_sys:r_string_ex(section,"grenade_class")
 	return str and str_explode(str,",")
@@ -32,8 +26,29 @@ function get_ammo_name(wpn)
 	local sec = wpn:section()
 	local ammo_type = wpn:get_ammo_type()
 	local ammo_list = (IsLauncher(wpn) and utils_item.get_ammo(sec,wpn:id())) or get_grenade_ammo(sec)
-	--DEBUG("[%s] %s %s",sec,ammo_type,ammo_list and ammo_list[ammo_type + 1])
 	return ammo_type and ammo_list and ammo_list[ammo_type + 1]
+end
+
+function get_launch_speed(wpn)
+	do
+		local ammo_name = get_ammo_name(wpn)
+		local speed = ammo_name and SYS_GetParam(2,ammo_name,"ammo_grenade_vel")
+		if (speed) then
+			return speed
+		end
+	end
+	do
+		local speed = SYS_GetParam(2,wpn:section(),"grenade_vel")
+		if (speed) then
+			return speed
+		end
+	end
+	do
+		local speed = SYS_GetParam(2,wpn:section(),"launch_speed")
+		if (speed) then
+			return speed
+		end
+	end
 end
 
 --[[----------------------------------------------------------------------------------------------------
@@ -68,25 +83,29 @@ function CGrenadeTrajectory:__init() super()
 	
 	self.grenade_point_const = vector():set(0.4,0.3,0.1)
 	self.grenade_classes = {
-		[clsid.wpn_grenade_f1_s] 		= true,
-		[clsid.wpn_grenade_rgd5_s] 		= true,
-		[clsid.wpn_grenade_launcher_s] 	= true,
-		[clsid.wpn_grenade_fake] 		= true,
 		[clsid.wpn_grenade_f1]			= true,
-		[clsid.wpn_grenade_launcher] 	= true,
+		[clsid.wpn_grenade_f1_s] 		= true,
 		[clsid.wpn_grenade_rgd5] 		= true,
-		[clsid.wpn_grenade_rpg7]		= true
+		[clsid.wpn_grenade_rgd5_s] 		= true,
 	}
 	self.launcher_classes = {
 		[clsid.wpn_rg6_s]				= true,
-		[clsid.wpn_rg6]					= true
+		[clsid.wpn_rg6]					= true,
+	}
+	self.launcher_hide_states = {
+		[CWeapon.eReload]				= true,
+		[CWeapon.eMisfire]				= true,
+		[CWeapon.eSwitch]				= true,
+		[CWeapon.eSwitchMode]			= true,
 	}
 	
-	self.particles_sec = [[_samples_particles_\grenade_throw_indicator]]
-	self.particles_num = 30
+	self.position_max = 40
+	
+	self.particles_sec = [[_samples_particles_\grenade_throw_trajectory]]
 	self.particles = nil
 	
-	self.dbg = {}
+	self.indicator_sec = [[_samples_particles_\grenade_throw_indicator]]
+	self.indicator = nil
 end
 
 function CGrenadeTrajectory:__finalize()
@@ -114,132 +133,81 @@ function CGrenadeTrajectory:Update()
 	
 	local pos = self:GetFirePosition(wpn)
 	local vel = self:GetFireVelocity(wpn)
+	self:TrajectoryCalculate(pos,vel)
+	self:TrajectoryDraw()
+end
+
+function CGrenadeTrajectory:TrajectoryCalculate(pos,vel)
+	self.particles_pos = nil
+	self.particles_idx = nil
+	self.indicator_pos = nil
 	if not (pos and vel) then
-		local sec = wpn:section()
-		if (self.dbg[sec] == nil) then
-			self.dbg[sec] = true
-			DEBUG("Wrong parameters [%s] pos = %s | vel = %s",sec,pos,vel)
-		end
-		return self:Hide()
-	end
-	self:DrawTrajectory(pos,vel)
-end
-
-function CGrenadeTrajectory:WeaponValidate(wpn)
-	if not (wpn) then
-		return false
-	end
-	if (SHOW_TRAJECTORY_GRD and self:IsGrenade(wpn)) then
-		return true
-	end
-	if (SHOW_TRAJECTORY_LCH and (self:IsLauncher(wpn) or (wpn:weapon_in_grenade_mode()))) then
-		return true
-	end
-	return false
-end
-
-function CGrenadeTrajectory:WeaponLoadData(wpn)
-	local sec = wpn:section()
-	
-	self.dt = {}
-	self.dt.oid = wpn:id()
-	self.dt.is_grenade = self:IsGrenade(wpn)
-	
-	if (self.dt.is_grenade) then
-		--[[
-		-- grenade_f1 and grenade_gd-05 have different offsets. Looks bad.
-		local v = parse_list(ini_sys,sec,"throw_point")
-		local x = tonumber(v[1]) or 0
-		local y = tonumber(v[2]) or 0
-		local z = tonumber(v[3]) or 0
-		self.dt.point = vector():set(x,y,z)
-		--]]
-		self.dt.point = vector():set(self.grenade_point_const)
-		self.dt.range = self.dt.point:magnitude()
-		self.dt.speed = SYS_GetParam(2,sec,"force_const")
 		return
 	end
 	
-	local hud_sec = SYS_GetParam(0,sec,"hud","nil")
-	self.dt.fire_bone_1 = SYS_GetParam(0,hud_sec,"fire_bone","")
-	self.dt.fire_bone_2 = SYS_GetParam(0,hud_sec,"fire_bone2","")
+	local tmp = {}
+	for i=1,self.position_max do
+		tmp[#tmp+1] = self:TrajectoryPosition(pos,vel,0.05 * i)
+	end
+	self.particles_pos = tmp
 	
-	if (self:IsLauncher(wpn)) then
-		self.dt.speed = SYS_GetParam(2,sec,"launch_speed")
-	else
-		local ammo_name = get_ammo_name(wpn)
-		self.dt.speed = ammo_name and SYS_GetParam(2,ammo_name,"ammo_grenade_vel")
-		self.dt.speed = self.dt.speed or SYS_GetParam(2,sec,"grenade_vel")
-	end
-	--DEBUG("[%s] WeaponLoadData() %s:%s:%s",wpn:name(),self.dt.fire_bone_1,self.dt.fire_bone_2,self.dt.speed)
-end
-
-function CGrenadeTrajectory:GetWeaponBoneId(wpn)
-	do
-		local bid = wpn:bone_id(self.dt.fire_bone_2,true)
-		if (bid ~= 65535) then
-			return bid
+	for i=1,self.position_max do
+		local src = tmp[i]
+		local dst = tmp[i+1]
+		if not (src and dst) then
+			break
 		end
-		--DEBUG("[%s] fire_bone_2 = %s %s",wpn:name(),self.dt.fire_bone_2,bid)
-	end
-	do
-		local bid = wpn:bone_id(self.dt.fire_bone_1,true)
-		if (bid ~= 65535) then
-			return bid
-		end
-		--DEBUG("[%s] fire_bone_1 = %s %s",wpn:name(),self.dt.fire_bone_1,bid)
-	end
-	do
-		--Last resort. Should never happen.
-		local bid = wpn:bone_id("wpn_body",true)
-		if (bid ~= 65535) then
-			return bid
+		local dir = vector():sub(dst,src):normalize()
+		local num = src:distance_to(dst)
+		local ray = ray_pick(src,dir,num,2,db.actor)
+		if (ray:query()) then
+			self.particles_idx = i
+			self.indicator_pos = vector():mad(src,dir,ray:get_distance()-0.5)
+			break
 		end
 	end
 end
 
-function CGrenadeTrajectory:GetFirePosition(wpn)
-	if (self.dt.is_grenade) then
-		--[[
-		Most accurate when verticle angle, p value, is 0.
-		The more away from 0 verticle angle is, the more inaccurate it becomes.
-		But most of the times people throw grenade while looking straight forward anyway.
-		--]]
-		local cam_dir = device().cam_dir
-		local h = self.dt.point:getH() + cam_dir:getH()
-		local p = self.dt.point:getP() + cam_dir:getP()
-		local vec = vector():setHP(h,p):normalize():mul(self.dt.range)
-		return vector():set(device().cam_pos):add(vec)
-	end
-	-- Launcher.
-	local bid = self:GetWeaponBoneId(wpn)
-	return bid and wpn:bone_position(bid,true)
-end
-
-function CGrenadeTrajectory:GetFireVelocity(wpn)
-	return self.dt.speed and vector():set(device().cam_dir):mul(self.dt.speed)
-end
-
-function CGrenadeTrajectory:DrawTrajectory(pos,vel)
+function CGrenadeTrajectory:TrajectoryDraw()
 	if (self.particles == nil) then
 		self.particles = {}
-	end
-	for i=2,self.particles_num do
-		if (self.particles[i] == nil) then
+		for i=2,self.position_max do
 			self.particles[i] = particles_object(self.particles_sec)
 		end
-		local num = 0.05 * i
-		local vec = self:PositionInTrajectory(pos,vel,num)
-		self.particles[i]:set_position(vec)
-		if (self.particles[i]:playing() ~= true) then
-			self.particles[i]:play()
+	end
+	local idx = self.particles_idx
+	for i,k in pairs(self.particles) do
+		local vec = self.particles_pos and self.particles_pos[i]
+		if (vec) and (idx == nil or idx >= i) then
+			k:set_position(vec)
+			if (k:playing() == false) then
+				k:play()
+			end
+		else
+			if (k:playing() == true) then
+				k:stop()
+			end
+		end
+	end
+	
+	if (self.indicator == nil) then
+		self.indicator = particles_object(self.indicator_sec)
+	end
+	if (self.indicator_pos) then
+		self.indicator:set_position(self.indicator_pos)
+		if (self.indicator:playing() == false) then
+			self.indicator:play()
+		end
+	else
+		if (self.indicator:playing() == true) then
+			self.indicator:stop()
 		end
 	end
 end
 
 function CGrenadeTrajectory:Hide()
 	if (self.particles) then
-		for i=2,self.particles_num do
+		for i=2,self.position_max do
 			if (self.particles[i]) then
 				if (self.particles[i]:playing()) then
 					self.particles[i]:stop()
@@ -249,9 +217,26 @@ function CGrenadeTrajectory:Hide()
 		end
 		self.particles = nil
 	end
+	if (self.indicator) then
+		if (self.indicator:playing()) then
+			self.indicator:stop()
+		end
+		self.indicator = nil
+	end
 end
 
-function CGrenadeTrajectory:PositionInTrajectory(pos,vel,duration)
+--[[----------------------------------------------------------------------------------------------------
+	Misc
+------------------------------------------------------------------------------------------------------]]
+function CGrenadeTrajectory:IsGrenade(wpn)
+	return self.grenade_classes[wpn:clsid()] or false
+end
+
+function CGrenadeTrajectory:IsLauncher(wpn)
+	return self.launcher_classes[wpn:clsid()] or false
+end
+
+function CGrenadeTrajectory:TrajectoryPosition(pos,vel,duration)
 	--[[
 	x = (v.x * t)
 	y = (v.y * t) - (g * (t^2) / 2)
@@ -264,19 +249,100 @@ function CGrenadeTrajectory:PositionInTrajectory(pos,vel,duration)
 	return vector():set(pos):add(motion)
 end
 
-function CGrenadeTrajectory:IsGrenade(wpn)
-	return self.grenade_classes[wpn:clsid()] or false
-end
-
-function CGrenadeTrajectory:IsLauncher(wpn)
-	return self.launcher_classes[wpn:clsid()] or false
-end
-
-function CGrenadeTrajectory:RayCast(pos,dir,range,flag,obj)
-	local ray = ray_pick(pos,dir,range,flag,obj or db.actor)
-	if (ray:query()) then
-		return ray:get_distance()
+function CGrenadeTrajectory:WeaponValidate(wpn)
+	if not (wpn) then
+		return false
 	end
+	if (TRAJECTORY_GRD and self:IsGrenade(wpn)) then
+		return true
+	end
+	if (TRAJECTORY_LCH and (self:IsLauncher(wpn) or (wpn:weapon_in_grenade_mode()))) then
+		return true
+	end
+	return false
+end
+
+function CGrenadeTrajectory:WeaponLoadData(wpn)
+	local sec = wpn:section()
+	
+	self.dt = {}
+	self.dt.oid = wpn:id()
+	self.dt.is_grenade = self:IsGrenade(wpn)
+	if (self.dt.is_grenade) then
+		return
+	end
+	
+	local hud_sec = SYS_GetParam(0,sec,"hud","nil")
+	self.dt.fire_bone_1 = SYS_GetParam(0,hud_sec,"fire_bone","")
+	self.dt.fire_bone_2 = SYS_GetParam(0,hud_sec,"fire_bone2","")
+end
+
+function CGrenadeTrajectory:GetWeaponBoneId(wpn)
+	do
+		local bid = wpn:bone_id(self.dt.fire_bone_2,true)
+		if (bid ~= 65535) then
+			return bid
+		end
+	end
+	do
+		local bid = wpn:bone_id(self.dt.fire_bone_1,true)
+		if (bid ~= 65535) then
+			return bid
+		end
+	end
+	do
+		--Last resort. Should never happen.
+		local bid = wpn:bone_id("wpn_body",true)
+		if (bid ~= 65535) then
+			return bid
+		end
+	end
+end
+
+function CGrenadeTrajectory:GrenadeUseDynamicForce(wpn)
+	if (wpn:cast_Missile():IsConstPower()) then
+		return false
+	end
+	local state = wpn:get_state()
+	if (state ~= CMissile.eThrowStart and state ~= CMissile.eReady) then
+		return false
+	end
+	return true
+end
+
+function CGrenadeTrajectory:GetFirePosition(wpn)
+	if (self.dt.is_grenade) then
+		local vec = vector():set(wpn:cast_Missile():GetThrowPoint())
+		cam_xform():transform_tiny(vec)
+		return vec
+	end
+	-- Launcher.
+	local bid = self:GetWeaponBoneId(wpn)
+	return bid and wpn:bone_position(bid,true)
+end
+
+function CGrenadeTrajectory:GetFireVelocity(wpn)
+	local vel = nil
+	local dir = nil
+	if (self.dt.is_grenade) then
+		dir = device().cam_dir
+		if (self:GrenadeUseDynamicForce(wpn)) then
+			vel = wpn:cast_Missile():GetThrowForce()
+		else
+			vel = wpn:cast_Missile():GetConstForce()
+		end
+	else
+		if (self.launcher_hide_states[wpn:get_state()] ~= true) then
+			local bid = self:GetWeaponBoneId(wpn)
+			local rot = bid and wpn:bone_direction(bid,true)
+			if (rot) then
+				dir = vector():set(0,0,1)
+				matrix():setHPB(rot.x,rot.y,rot.z):transform_dir(dir)
+			end
+			vel = get_launch_speed(wpn)
+		end
+	end
+	return vel and dir and vector():set(dir):mul(vel)
 end
 
 --[[----------------------------------------------------------------------------------------------------
@@ -302,4 +368,16 @@ function on_game_start()
 	RegisterScriptCallback("GUI_on_hide",on_show_hide)
 	RegisterScriptCallback("actor_on_first_update",actor_on_first_update)
 	RegisterScriptCallback("actor_on_net_destroy",actor_on_net_destroy)
+end
+
+function DEBUG(str,...)
+	local func = debug.getinfo(2,"S").source
+	local line = debug.getinfo(2,"l").currentline
+	func = string.sub(func,#func - string.find(string.reverse(func),"\\") + 2,#func)
+	local p = {...}
+	if (p and (#p ~= 0)) then
+		printf(string.format("[GhenTuong] %s:%s | %s",tostring(func),tostring(line),str),...)
+	else
+		printf(string.format("[GhenTuong] %s:%s | ",tostring(func),tostring(line)) .. "%s",str)
+	end
 end

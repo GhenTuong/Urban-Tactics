@@ -76,12 +76,10 @@ function server_entity_on_unregister(se,flag)
 	if not (SYS_GetParam(0,se:section_name(),"kind") == "v_drone") then
 		return
 	end
-	DEBUG("server_entity_on_unregister %s",se:name())
 	db.drones_data_storage[se.id] = nil
 end
 
 function save_state(m_data)
-	DEBUG("save_state")
 	m_data.GT_DRONES_DATA_STORAGE = db.drones_data_storage
 end
 
@@ -93,14 +91,13 @@ end
 	Main
 ------------------------------------------------------------------------------------------------------]]
 --[[
+To do:
 Implement inventory for CCar.
-Make attachments inventory items instead.
-Then transfer item in and out of CCar. And store item id.
+Make attachments to be inventory items instead.
+Then we can transfer item in and out of CCar and only have to store item id.
 --]]
 DRONE_ATTACHMENT_ITEMS = {
-	{sec = "grenade_rgd5",explosive = "grenade_rgd5"},
-	{sec = "grenade_f1",explosive = "grenade_f1"},
-	{sec = "grenade_explosive_charge",explosive = "grenade_explosive_charge"},
+	{sec = "ied_chinese",explosive = "ied_chinese_blow"},
 	{sec = "ied_rpg_new",explosive = "rpg_new_blow"},
 	{sec = "ied_new",explosive = "ied_new_blow"},
 }
@@ -154,7 +151,7 @@ end
 
 function drone_pickup(id)
 	local obj = object_by_id(id)
-	local sec = obj and DRONE_MGR:SectionItm(obj:section())
+	local sec = obj and DRONE_MGR:DroneToItem(obj:section())
 	if (sec) then
 		drone_detach(id,true)
 		actor_give_item(sec)
@@ -246,7 +243,7 @@ function CDroneBinder:__init(obj) super(obj)
 	db.storage[self.object:id()] = {}
 	self.oid = self.object:id()
 	self.car = self.object:get_car()
-	self.mdt = db.drones_data_storage[self.oid]
+	self.mem = db.drones_data_storage[self.oid]
 	
 	self.attachment_bone = SYS_GetParam(0,self.object:section(),"attachment_bone")
 	
@@ -288,18 +285,16 @@ end
 
 function CDroneBinder:AttachmentData()
 	local sec = self:ExplosiveSection()
-	if not (sec) then
-		return
+	if (sec) then
+		local visual = SYS_GetParam(0,sec,"visual")
+		local weight = SYS_GetParam(2,sec,"attachment_weight",0)
+		if (visual and weight) then
+			local t = {}
+			t.visual = visual
+			t.weight = weight
+			return t
+		end
 	end
-	local visual = SYS_GetParam(0,sec,"visual")
-	local weight = SYS_GetParam(2,sec,"attachment_weight",0)
-	if not (visual and weight) then
-		return
-	end
-	local t = {}
-	t.visual = visual
-	t.weight = weight
-	return t
 end
 
 function CDroneBinder:CanTakeControl()
@@ -340,7 +335,7 @@ function CDroneBinder:ExplosiveDetonate(who)
 end
 
 function CDroneBinder:ExplosiveSection()
-	local sec = self.mdt and self.mdt.attachment_sec
+	local sec = self.mem and self.mem.attachment_sec
 	local idx = sec and get_drone_attachment_index(sec)
 	local tmp = idx and DRONE_ATTACHMENT_ITEMS[idx]
 	return tmp and tmp.explosive
@@ -366,18 +361,12 @@ function CDroneBinder:net_spawn(se_abstract)
 	self.object:set_callback(callback.death,CDroneBinder.death_callback,self)
 	self:AttachmentUpdate()
 	
-	if (self.mdt) then
-		if (self.mdt.engine_on) then
-			self.car:StartEngine()
-		end
-	end
-	
+	CreateTimeEvent(self.oid,"after_net_spawn",0,self.after_net_spawn,self)
 	SendScriptCallback("drone_on_net",self.object,true)
 	return true
 end
 
 function CDroneBinder:net_destroy()
-	DEBUG("net_destroy() %s",time_global())
 	SendScriptCallback("drone_on_net",self.object,false)
 	db.del_obj(self.object)
 	del_drone(self.object)
@@ -398,8 +387,8 @@ function CDroneBinder:save(packet)
 	set_save_marker(packet,"save",false,"physics_binder")
 	set_save_marker(packet,"save",true,"physics_binder")
 	
-	if (self.mdt) then
-		self.mdt.engine_on = self.car:IsActiveEngine()
+	if (self.mem) then
+		self.mem.engine_on = self.car:IsActiveEngine()
 	end
 end
 
@@ -407,6 +396,16 @@ function CDroneBinder:load(packet)
 	object_binder.load(self,packet)
 	set_save_marker(packet,"load",false,"physics_binder")
 	set_save_marker(packet,"load",true,"physics_binder")
+end
+
+function CDroneBinder:after_net_spawn()
+	if (self.mem) then
+		if (self.mem.engine_on) then
+			self.mem.engine_on = nil
+			self.car:StartEngine()
+		end
+	end
+	return true
 end
 
 --[[----------------------------------------------------------------------------------------------------

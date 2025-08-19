@@ -2,7 +2,7 @@
 
 <string_table>
 	<string id="st_defuse">
-		<text>Обезвредить (потребуется швейцарский нож или мультитул)</text>
+		<text>Обезвредить ($$ACTION_USE$$)</text>
 	</string>
 	
 	<string id="ammo_flare_grenade_vgop">

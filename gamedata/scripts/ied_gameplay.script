@@ -27,19 +27,20 @@ function CIedManager:__init()
 	self.cfg_blow_to_item = {}
 	
 	local ini = ini_file([[items\settings\deploy.ltx]])
-	if (ini:section_exist("ied")) then
-		for idx,val in pairs(utils_data.collect_section(ini,"ied",true)) do
-			if (ini_sys:section_exist(idx) and ini_sys:section_exist(val)) then
+	if (ini:section_exist("ieds")) then
+		for idx,val in pairs(utils_data.collect_section(ini,"ieds",true)) do
+			if (ini_sys:section_exist(idx) and ini_sys:section_exist(val) and self:IsIed(val)) then
 				self.cfg_item_to_blow[idx] = val
 				self.cfg_blow_to_item[val] = idx
 			else
-				DEBUG("Section do not exist %s = %s | %s %s",idx,val,ini_sys:section_exist(idx),ini_sys:section_exist(val))
+				DEBUG("Wrong parameters [%s] = %s | [%s] %s",idx,val,ini_sys:section_exist(idx),ini_sys:section_exist(val))
 			end
 		end
 	end
 	
 	RegisterScriptCallback("save_state",self)
 	RegisterScriptCallback("load_state",self)
+	RegisterScriptCallback("actor_on_first_update",self)
 	RegisterScriptCallback("server_entity_on_unregister",self)
 	RegisterScriptCallback("actor_on_item_before_pickup",self)
 	
@@ -56,11 +57,35 @@ function CIedManager:load_state(m_data)
 	self.IED_ACT_OWN = m_data.GT_IED_ACT_OWN or {}
 end
 
+function CIedManager:actor_on_first_update()
+	for idx=#self.IED_ACT_OWN,1,-1 do
+		local id = self.IED_ACT_OWN[idx]
+		local se = id and alife_object(id)
+		if (se and not simulation_objects.is_on_the_actor_level(se)) then
+			if (self:IsIed(se:section_name())) then
+				DEBUG("Release ied for not in actor level [%s]",se:name())
+				alife_release(se)
+			else
+				DEBUG("ERROR: object invalid [%s]",se:name())
+				self:ActorOwnDel(se.id)
+			end
+		else
+			DEBUG("ERROR: object does not exist")
+			self:ActorOwnDel(se.id)
+		end
+	end
+end
+
 function CIedManager:server_entity_on_unregister(se,flag)
-	if (flag == "se_explosive") and (self.IED_STORAGE[se.id]) then
+	if (flag == "se_explosive") and (self:IsIed(se:section_name())) then
+		DEBUG("server_entity_on_unregister(%s)",se:name())
 		self.IED_STORAGE[se.id] = nil
 		self:ActorOwnDel(se.id)
 	end
+end
+
+function CIedManager:IsIed(sec)
+	return sec and (SYS_GetParam(0,sec,"kind") == "e_ied") and true or false
 end
 
 function CIedManager:ItemToBlow(sec)
@@ -125,9 +150,9 @@ function CIedManager:Create(prs,actor_own)
 	local ang = prs and prs.ang
 	local fix = prs and prs.fix
 	local num = prs and prs.num
-	if (sec and pos and vid and gid and ang and self:BlowToItem(sec)) then
+	if (sec and pos and vid and gid and ang and self:IsIed(sec)) then
 		local se = alife_create(sec,pos,vid,gid)
-		se.angle = ang
+		se.angle = vector():set(ang.y,ang.x,ang.z)
 		local k = {}
 		k.num = num
 		if (fix) then
@@ -281,6 +306,12 @@ function hud_deploy_update()
 	end
 end
 
+function on_key_press(dik)
+	if (HUD) then
+		HUD:OnKeyPress(dik)
+	end
+end
+
 class "UIDeploy" (CUIScriptWnd)
 function UIDeploy:__init(obj) super(obj)
 	self:SetWndRect(Frect():set(0,0,1280,768))
@@ -356,24 +387,23 @@ function UIDeploy:Deploy()
 		return
 	end
 	local atm = db.actor:get_attachment(self.atm_name)
-	if not (atm) then
+	local xfm = atm and atm:get_transform()
+	if not (xfm) then
 		return
 	end
-	
 	local obj = object_by_id(self.oid)
 	local k = {}
 	k.sec = IED_MGR:ItemToBlow(obj:section())
-	k.pos = vector():set(atm:get_transform().c)
+	k.pos = vector():set(xfm.c)
 	k.vid = db.actor:level_vertex_id()
 	k.gid = db.actor:game_vertex_id()
-	k.ang = atm:get_transform():getHPB()
+	k.ang = xfm:getHPB()
 	k.fix = self.dir and true or false
 	k.num = generate_phone_number()
 	if (IED_MGR:Create(k,true)) then
 		news_manager.relocate_item(db.actor,"out",obj:section())
 		alife_release(obj)
 	end
-	
 	self:ResumeActive()
 	return self:Close()
 end
@@ -408,7 +438,6 @@ function UIDeploy:GetDeployRotation()
 		local num = self:RayPick(tmp,dir,1)
 		t[i] = (num > 0) and vector():mad(tmp,dir,num)
 	end
-	
 	if (t[1] and t[2] and t[3] and t[4]) then
 		local horz = vector():sub(t[2],t[1])
 		local vert = vector():sub(t[4],t[3])
@@ -439,14 +468,12 @@ function UIDeploy:Close()
 	hud_deploy_remove()
 end
 
-function on_key_press(dik)
-	if (HUD) then
-		if (dik == DIK_keys.MOUSE_1) then
-			HUD:Deploy()
-		end
-		if (dik == DIK_keys.MOUSE_2) then
-			HUD:Cancel()
-		end
+function UIDeploy:OnKeyPress(dik)
+	if (dik == DIK_keys.MOUSE_1) then
+		return self:Deploy()
+	end
+	if (dik == DIK_keys.MOUSE_2) then
+		return self:Cancel()
 	end
 end
 
