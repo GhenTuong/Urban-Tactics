@@ -232,7 +232,7 @@ function UIController:Reset()
 	ActorMenu.get_pda_menu():GetTabControl():Show(false)
 	
 	self.devices:RemoveAll()
-	for _,id in ipairs(DRONE_MGR:PlayerDrones()) do
+	for _,id in ipairs(DRONE_MGR:ActorOwn()) do
 		local obj = object_by_id(id)
 		if (obj and obj:alive()) then
 			self.devices:AddExistingItem(UIDeviceItem(obj))

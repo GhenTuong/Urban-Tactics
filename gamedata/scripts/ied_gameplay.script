@@ -27,19 +27,20 @@ function CIedManager:__init()
 	self.cfg_blow_to_item = {}
 	
 	local ini = ini_file([[items\settings\deploy.ltx]])
-	if (ini:section_exist("ied")) then
-		for idx,val in pairs(utils_data.collect_section(ini,"ied",true)) do
-			if (ini_sys:section_exist(idx) and ini_sys:section_exist(val)) then
+	if (ini:section_exist("ieds")) then
+		for idx,val in pairs(utils_data.collect_section(ini,"ieds",true)) do
+			if (ini_sys:section_exist(idx) and ini_sys:section_exist(val) and self:IsIed(val)) then
 				self.cfg_item_to_blow[idx] = val
 				self.cfg_blow_to_item[val] = idx
 			else
-				DEBUG("Section do not exist %s = %s | %s %s",idx,val,ini_sys:section_exist(idx),ini_sys:section_exist(val))
+				DEBUG("Wrong parameters [%s] = %s | [%s] %s",idx,val,ini_sys:section_exist(idx),ini_sys:section_exist(val))
 			end
 		end
 	end
 	
 	RegisterScriptCallback("save_state",self)
 	RegisterScriptCallback("load_state",self)
+	RegisterScriptCallback("actor_on_first_update",self)
 	RegisterScriptCallback("server_entity_on_unregister",self)
 	RegisterScriptCallback("actor_on_item_before_pickup",self)
 	
@@ -56,11 +57,35 @@ function CIedManager:load_state(m_data)
 	self.IED_ACT_OWN = m_data.GT_IED_ACT_OWN or {}
 end
 
+function CIedManager:actor_on_first_update()
+	for idx=#self.IED_ACT_OWN,1,-1 do
+		local id = self.IED_ACT_OWN[idx]
+		local se = id and alife_object(id)
+		if (se and not simulation_objects.is_on_the_actor_level(se)) then
+			if (self:IsIed(se:section_name())) then
+				DEBUG("Release ied for not in actor level [%s]",se:name())
+				alife_release(se)
+			else
+				DEBUG("ERROR: object invalid [%s]",se:name())
+				self:ActorOwnDel(se.id)
+			end
+		else
+			DEBUG("ERROR: object does not exist")
+			self:ActorOwnDel(se.id)
+		end
+	end
+end
+
 function CIedManager:server_entity_on_unregister(se,flag)
-	if (flag == "se_explosive") and (self.IED_STORAGE[se.id]) then
+	if (flag == "se_explosive") and (self:IsIed(se:section_name())) then
+		DEBUG("server_entity_on_unregister(%s)",se:name())
 		self.IED_STORAGE[se.id] = nil
 		self:ActorOwnDel(se.id)
 	end
+end
+
+function CIedManager:IsIed(sec)
+	return sec and (SYS_GetParam(0,sec,"kind") == "e_ied") and true or false
 end
 
 function CIedManager:ItemToBlow(sec)
@@ -125,7 +150,7 @@ function CIedManager:Create(prs,actor_own)
 	local ang = prs and prs.ang
 	local fix = prs and prs.fix
 	local num = prs and prs.num
-	if (sec and pos and vid and gid and ang and self:BlowToItem(sec)) then
+	if (sec and pos and vid and gid and ang and self:IsIed(sec)) then
 		local se = alife_create(sec,pos,vid,gid)
 		se.angle = vector():set(ang.y,ang.x,ang.z)
 		local k = {}

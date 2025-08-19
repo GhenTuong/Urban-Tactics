@@ -151,7 +151,7 @@ end
 
 function drone_pickup(id)
 	local obj = object_by_id(id)
-	local sec = obj and DRONE_MGR:SectionItm(obj:section())
+	local sec = obj and DRONE_MGR:DroneToItem(obj:section())
 	if (sec) then
 		drone_detach(id,true)
 		actor_give_item(sec)
@@ -243,7 +243,7 @@ function CDroneBinder:__init(obj) super(obj)
 	db.storage[self.object:id()] = {}
 	self.oid = self.object:id()
 	self.car = self.object:get_car()
-	self.mdt = db.drones_data_storage[self.oid]
+	self.mem = db.drones_data_storage[self.oid]
 	
 	self.attachment_bone = SYS_GetParam(0,self.object:section(),"attachment_bone")
 	
@@ -335,7 +335,7 @@ function CDroneBinder:ExplosiveDetonate(who)
 end
 
 function CDroneBinder:ExplosiveSection()
-	local sec = self.mdt and self.mdt.attachment_sec
+	local sec = self.mem and self.mem.attachment_sec
 	local idx = sec and get_drone_attachment_index(sec)
 	local tmp = idx and DRONE_ATTACHMENT_ITEMS[idx]
 	return tmp and tmp.explosive
@@ -361,18 +361,12 @@ function CDroneBinder:net_spawn(se_abstract)
 	self.object:set_callback(callback.death,CDroneBinder.death_callback,self)
 	self:AttachmentUpdate()
 	
-	if (self.mdt) then
-		if (self.mdt.engine_on) then
-			self.car:StartEngine()
-		end
-	end
-	
+	CreateTimeEvent(self.oid,"after_net_spawn",0,self.after_net_spawn,self)
 	SendScriptCallback("drone_on_net",self.object,true)
 	return true
 end
 
 function CDroneBinder:net_destroy()
-	DEBUG("net_destroy() %s",time_global())
 	SendScriptCallback("drone_on_net",self.object,false)
 	db.del_obj(self.object)
 	del_drone(self.object)
@@ -393,8 +387,8 @@ function CDroneBinder:save(packet)
 	set_save_marker(packet,"save",false,"physics_binder")
 	set_save_marker(packet,"save",true,"physics_binder")
 	
-	if (self.mdt) then
-		self.mdt.engine_on = self.car:IsActiveEngine()
+	if (self.mem) then
+		self.mem.engine_on = self.car:IsActiveEngine()
 	end
 end
 
@@ -402,6 +396,16 @@ function CDroneBinder:load(packet)
 	object_binder.load(self,packet)
 	set_save_marker(packet,"load",false,"physics_binder")
 	set_save_marker(packet,"load",true,"physics_binder")
+end
+
+function CDroneBinder:after_net_spawn()
+	if (self.mem) then
+		if (self.mem.engine_on) then
+			self.mem.engine_on = nil
+			self.car:StartEngine()
+		end
+	end
+	return true
 end
 
 --[[----------------------------------------------------------------------------------------------------

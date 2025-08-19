@@ -19,60 +19,136 @@ function cam_xform()
 end
 
 --[[----------------------------------------------------------------------------------------------------
+	Manager
+------------------------------------------------------------------------------------------------------]]
+_G.MINE_MGR = nil
+
+class "CMineManager"
+function CMineManager:__init()
+	self.MINE_ACT_OWN = {}
+	
+	self.cfg_item_to_mine = {}
+	self.cfg_mine_to_item = {}
+	
+	local ini = ini_file([[items\settings\deploy.ltx]])
+	if (ini:section_exist("mines")) then
+		for idx,val in pairs(utils_data.collect_section(ini,"mines",true)) do
+			if (ini_sys:section_exist(idx) and ini_sys:section_exist(val)) then
+				self.cfg_item_to_mine[idx] = val
+				self.cfg_mine_to_item[val] = idx
+			else
+				DEBUG("Section do not exist [%s] %s | [%s] %s",idx,ini_sys:section_exist(idx),val,ini_sys:section_exist(val))
+			end
+		end
+	end
+		
+	RegisterScriptCallback("save_state",self)
+	RegisterScriptCallback("load_state",self)
+	RegisterScriptCallback("server_entity_on_unregister",self)
+	RegisterScriptCallback("actor_on_first_update",self)
+end
+
+function CMineManager:save_state(m_data)
+	m_data.GT_MINE_ACT_OWN = self.MINE_ACT_OWN
+end
+
+function CMineManager:load_state(m_data)
+	self.MINE_ACT_OWN = m_data.GT_MINE_ACT_OWN or {}
+end
+
+function CMineManager:actor_on_first_update()
+	for idx=#self.MINE_ACT_OWN,1,-1 do
+		local id = self.MINE_ACT_OWN[idx]
+		local se = id and alife_object(id)
+		if (se and not simulation_objects.is_on_the_actor_level(se)) then
+			if (self:IsMine(se:section_name())) then
+				DEBUG("Release mine for not in actor level [%s]",se:name())
+				alife_release(se)
+			else
+				DEBUG("ERROR: object invalid [%s]",se:name())
+				self:ActorOwnDel(se.id)
+			end
+		else
+			DEBUG("ERROR: object does not exist")
+			self:ActorOwnDel(se.id)
+		end
+	end
+end
+
+function CMineManager:server_entity_on_unregister(se,flag)
+	if (flag == "se_physic") and (self:IsMine(se:section_name())) then
+		DEBUG("server_entity_on_unregister(%s)",se:name())
+		self:ActorOwnDel(se.id)
+	end
+end
+
+function CMineManager:IsMine(sec)
+	return sec and (SYS_GetParam(0,sec,"kind") == "e_mine") and true or false
+end
+
+function CMineManager:ActorOwnAdd(id)
+	for i,v in ipairs(self.MINE_ACT_OWN) do 
+		if (v == id) then 
+			return 
+		end
+	end
+	self.MINE_ACT_OWN[#self.MINE_ACT_OWN+1] = id
+end
+
+function CMineManager:ActorOwnDel(id)
+	for i,v in ipairs(self.MINE_ACT_OWN) do 
+		if (v == id) then
+			table.remove(self.MINE_ACT_OWN,i)
+			break
+		end
+	end
+end
+
+function CMineManager:ItemToMine(sec)
+	return sec and self.cfg_item_to_mine[sec]
+end
+
+function CMineManager:MinetoItem(sec)
+	return sec and self.cfg_mine_to_item[sec]
+end
+
+function CMineManager:Create(prs,actor_own)
+	local sec = prs and prs.sec
+	local pos = prs and prs.pos
+	local vid = prs and prs.vid
+	local gid = prs and prs.gid
+	local ang = prs and prs.ang
+	if (sec and pos and vid and gid and ang and self:IsMine(sec)) then
+		local se = alife_create(sec,pos,vid,gid)
+		se.angle = vector():set(ang.y,ang.x,ang.z)
+		if (actor_own) then
+			self:ActorOwnAdd(se.id)
+		end
+		return true
+	end
+	DEBUG("Wrong parameters %s %s %s %s %s",sec,pos,vid,gid,ang)
+	return false
+end
+
+--[[----------------------------------------------------------------------------------------------------
 	Main
 ------------------------------------------------------------------------------------------------------]]
-local MIN_FORGET_TIME = 60 * 10
-local MAX_FORGET_TIME = 60 * 20
-
-local DEPLOY_DELAY = 3000
-local DEPLOY_RANGE = 2
-local DEFUSE_RANGE = 2
-
-local DEPLOY_SND_1 = [[interface\items\inv_items_wpn_1]]
-local DEPLOY_SND_2 = [[interface\items\inv_items_grenade_1]]
 local CHECKOUT_SND = [[weapons\generic_checkout]]
 
-mine_objects = {}
+db.mine_objects = {}
 
 function add_binded_object(obj)
-	mine_objects[obj:id()] = obj
+	db.mine_objects[obj:id()] = obj
 end
 
 function del_binded_object(obj)
-	mine_objects[obj:id()] = nil
-end
-
-DEPLOY_TABLE = {
-	{
-		tool = "tool_tripwire_f1",
-		mine = "mine_tripwire_f1",
-	},
-}
-
-TOOL_SECTION = {
-	["tool_tripwire_f1"] = true,
-}
-
-function get_section_mine(sec)
-	for _,k in pairs(DEPLOY_TABLE) do
-		if (sec == k.tool) then
-			return k.mine
-		end
-	end
-end
-
-function get_section_tool(sec)
-	for _,k in pairs(DEPLOY_TABLE) do
-		if (sec == k.mine) then
-			return k.tool
-		end
-	end
+	db.mine_objects[obj:id()] = nil
 end
 
 -- Mine is defused.
 function TimeEvent_use_callback(oid)
 	local obj = object_by_id(oid)
-	local sec = obj and get_section_tool(obj:section())
+	local sec = obj and MINE_MGR:MinetoItem(obj:section())
 	if (sec) then
 		alife_create_item(sec,db.actor)
 		alife_release(obj)
@@ -101,7 +177,7 @@ function TimeEvent_exp_callback(oid)
 end
 
 function actor_on_item_use(obj)
-	if (deploy_condition() and TOOL_SECTION[obj:section()]) then
+	if (deploy_condition() and MINE_MGR:ItemToMine(obj:section())) then
 		if (HUD) then
 			HUD:Close()
 		end
@@ -123,21 +199,6 @@ function deploy_condition()
 		return false
 	end
 	return true
-end
-
-function create_mine(prs)
-	local sec = prs and prs.sec
-	local pos = prs and prs.pos
-	local vid = prs and prs.vid
-	local gid = prs and prs.gid
-	local ang = prs and prs.ang
-	if (sec and pos and vid and gid and ang) then
-		local se = alife_create(sec,pos,vid,gid)
-		se.angle = vector():set(ang.y,ang.x,ang.z)
-		return true
-	end
-	DEBUG("Wrong parameters %s %s %s %s %s",sec,pos,vid,gid,ang)
-	return false
 end
 
 --[[----------------------------------------------------------------------------------------------------
@@ -270,12 +331,12 @@ function UIDeploy:Deploy()
 	end
 	local obj = object_by_id(self.oid)
 	local k = {}
-	k.sec = get_section_mine(obj:section())
+	k.sec = MINE_MGR:ItemToMine(obj:section())
 	k.pos = vector():set(xfm.c)
 	k.vid = db.actor:level_vertex_id()
 	k.gid = db.actor:game_vertex_id()
 	k.ang = xfm:getHPB()
-	if (create_mine(k)) then
+	if (MINE_MGR:Create(k,true)) then
 		news_manager.relocate_item(db.actor,"out",obj:section())
 		alife_release(obj)
 	end
@@ -289,7 +350,7 @@ function UIDeploy:Rotate(klockwise)
 end
 
 function UIDeploy:GetAttachmentVisual(obj)
-	local sec = obj and get_section_mine(obj:section())
+	local sec = obj and MINE_MGR:ItemToMine(obj:section())
 	return sec and SYS_GetParam(0,sec,"visual")
 end
 
@@ -422,7 +483,7 @@ function CMineBinder:update(delta)
 end
 
 function CMineBinder:use_callback(obj,who)
-	if (obj:position():distance_to_sqr(who:position()) > math.pow(DEFUSE_RANGE,2)) then
+	if (obj:position():distance_to_sqr(who:position()) > math.pow(2,2)) then
 		return
 	end
 	CreateTimeEvent(obj:id(),"TimeEvent_use_callback",0,TimeEvent_use_callback,obj:id())
@@ -566,6 +627,7 @@ end
 	Registers
 ------------------------------------------------------------------------------------------------------]]
 function on_game_start()
+	_G.MINE_MGR = CMineManager()
 	RegisterScriptCallback("GUI_on_show",on_show_hide)
 	RegisterScriptCallback("GUI_on_hide",on_show_hide)
 	RegisterScriptCallback("actor_on_net_destroy",actor_on_net_destroy)

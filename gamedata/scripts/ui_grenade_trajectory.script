@@ -275,7 +275,6 @@ function CGrenadeTrajectory:WeaponLoadData(wpn)
 	local hud_sec = SYS_GetParam(0,sec,"hud","nil")
 	self.dt.fire_bone_1 = SYS_GetParam(0,hud_sec,"fire_bone","")
 	self.dt.fire_bone_2 = SYS_GetParam(0,hud_sec,"fire_bone2","")
-	--DEBUG("[%s] WeaponLoadData() %s:%s:%s",wpn:name(),self.dt.fire_bone_1,self.dt.fire_bone_2,self.dt.speed)
 end
 
 function CGrenadeTrajectory:GetWeaponBoneId(wpn)
