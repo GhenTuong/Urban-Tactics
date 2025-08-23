@@ -32,128 +32,10 @@ function display_key(dik)
 end
 
 --[[----------------------------------------------------------------------------------------------------
-	Manager
-------------------------------------------------------------------------------------------------------]]
-_G.DRONE_MGR = nil
-
-class "CDroneManager"
-function CDroneManager:__init()
-	self.DRONE_ACT_OWN = {}
-	
-	self.cfg_item_to_drone = {}
-	self.cfg_drone_to_item = {}
-	
-	local ini = ini_file([[items\settings\deploy.ltx]])
-	if (ini:section_exist("drones")) then
-		for idx,val in pairs(utils_data.collect_section(ini,"drones",true)) do
-			if (ini_sys:section_exist(idx) and ini_sys:section_exist(val) and self:IsDrone(val)) then
-				self.cfg_item_to_drone[idx] = val
-				self.cfg_drone_to_item[val] = idx
-			else
-				DEBUG("Wrong parameters [%s] = %s | [%s] %s",idx,val,ini_sys:section_exist(idx),ini_sys:section_exist(val))
-			end
-		end
-	end
-	
-	RegisterScriptCallback("save_state",self)
-	RegisterScriptCallback("load_state",self)
-	RegisterScriptCallback("server_entity_on_unregister",self)
-	RegisterScriptCallback("actor_on_first_update",self)
-	
-	self.pickup_id = nil
-end
-
-function CDroneManager:save_state(m_data)
-	m_data.GT_DRONE_ACT_OWN = self.DRONE_ACT_OWN
-end
-
-function CDroneManager:load_state(m_data)
-	self.DRONE_ACT_OWN = m_data.GT_DRONE_ACT_OWN or {}
-end
-
-function CDroneManager:actor_on_first_update()
-	for idx=#self.DRONE_ACT_OWN,1,-1 do
-		local id = self.DRONE_ACT_OWN[idx]
-		local se = id and alife_object(id)
-		if (se and not simulation_objects.is_on_the_actor_level(se)) then
-			if (self:IsDrone(se:section_name())) then
-				DEBUG("Release drone for not in actor level [%s]",se:name())
-				alife_release(se)
-			else
-				DEBUG("ERROR: object invalid [%s]",se:name())
-				self:ActorOwnDel(se.id)
-			end
-		else
-			DEBUG("ERROR: object does not exist")
-			self:ActorOwnDel(se.id)
-		end
-	end
-end
-
-function CDroneManager:server_entity_on_unregister(se,flag)
-	if (flag == "se_car") and (self:IsDrone(se:section_name())) then
-		DEBUG("server_entity_on_unregister(%s)",se:name())
-		self:ActorOwnDel(se.id)
-	end
-end
-
-function CDroneManager:IsDrone(sec)
-	return sec and (SYS_GetParam(0,sec,"kind") == "v_drone") and true or false
-end
-
-function CDroneManager:ActorOwn()
-	return self.DRONE_ACT_OWN
-end
-
-function CDroneManager:ActorOwnAdd(id)
-	for i,v in ipairs(self.DRONE_ACT_OWN) do 
-		if (v == id) then 
-			return 
-		end
-	end
-	self.DRONE_ACT_OWN[#self.DRONE_ACT_OWN+1] = id
-end
-
-function CDroneManager:ActorOwnDel(id)
-	for i,v in ipairs(self.DRONE_ACT_OWN) do 
-		if (v == id) then
-			table.remove(self.DRONE_ACT_OWN,i)
-			break
-		end
-	end
-end
-
-function CDroneManager:ItemToDrone(sec)
-	return sec and self.cfg_item_to_drone[sec]
-end
-
-function CDroneManager:DroneToItem(sec)
-	return sec and self.cfg_drone_to_item[sec]
-end
-
-function CDroneManager:Create(prs,actor_own)
-	local sec = prs and prs.sec
-	local pos = prs and prs.pos
-	local vid = prs and prs.vid
-	local gid = prs and prs.gid
-	local ang = prs and prs.ang
-	if (sec and pos and vid and gid and ang and self:IsDrone(sec)) then
-		local se = alife_create(sec,pos,vid,gid)
-		se.angle = vector():set(ang.y,ang.x,ang.z)
-		if (actor_own) then
-			DRONE_MGR:ActorOwnAdd(se.id)
-		end
-		return true
-	end
-	DEBUG("Wrong parameters %s %s %s %s %s",sec,pos,vid,gid,ang)
-	return false
-end
-
---[[----------------------------------------------------------------------------------------------------
 	Main
 ------------------------------------------------------------------------------------------------------]]
 function drone_deploy_desc(obj)
-	local sec = DRONE_MGR:ItemToDrone(obj:section())
+	local sec = DRONE_MGR:ItemToObject(obj:section())
 	return strformat(GT("handheld_drone_deploy_desc"),ui_item.get_sec_name(sec))
 end
 
@@ -303,12 +185,13 @@ function UIDeploy:Deploy()
 	end
 	local obj = object_by_id(self.oid)
 	local k = {}
-	k.sec = DRONE_MGR:ItemToDrone(obj:section())
+	k.sec = DRONE_MGR:ItemToObject(obj:section())
 	k.pos = vector():set(xfm.c)
 	k.vid = db.actor:level_vertex_id()
 	k.gid = db.actor:game_vertex_id()
 	k.ang = xfm:getHPB()
 	if (DRONE_MGR:Create(k,true)) then
+		itms_manager.play_item_sound(obj,0.75)
 		news_manager.relocate_item(db.actor,"out",obj:section())
 		alife_release(obj)
 	end
@@ -317,7 +200,7 @@ function UIDeploy:Deploy()
 end
 
 function UIDeploy:GetAttachmentVisual(obj)
-	local sec = obj and DRONE_MGR:ItemToDrone(obj:section())
+	local sec = obj and DRONE_MGR:ItemToObject(obj:section())
 	return sec and SYS_GetParam(0,sec,"visual")
 end
 
@@ -435,7 +318,6 @@ end
 	Registers
 ------------------------------------------------------------------------------------------------------]]
 function on_game_start()
-	_G.DRONE_MGR = CDroneManager()
 	RegisterScriptCallback("GUI_on_show",on_show_hide)
 	RegisterScriptCallback("GUI_on_hide",on_show_hide)
 	RegisterScriptCallback("actor_on_net_destroy",actor_on_net_destroy)

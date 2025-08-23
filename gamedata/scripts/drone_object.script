@@ -9,17 +9,6 @@ local GT = game.translate_string
 _G.AddScriptCallback("drone_on_net")
 _G.AddScriptCallback("drone_on_death")
 
-function _G.IsDrone(obj)
-	if not (obj and IsCar(obj)) then
-		return false
-	end
-	local sec = obj.section and obj:section() or obj:section_name()
-	if not (DRONE_MGR:IsDrone(sec)) then
-		return false
-	end
-	return true
-end
-
 --[[----------------------------------------------------------------------------------------------------
 	Utilities
 ------------------------------------------------------------------------------------------------------]]
@@ -35,52 +24,6 @@ end
 function actor_lost_item(itm)
 	news_manager.relocate_item(db.actor,"out",itm:section())
 	alife_release(itm)
-end
-
---[[----------------------------------------------------------------------------------------------------
-	Storage
-------------------------------------------------------------------------------------------------------]]
-db.drones = {}
-
-function add_drone(obj)
-	db.drones[obj:id()] = obj
-end
-
-function del_drone(obj)
-	db.drones[obj:id()] = nil
-end
-
-db.drones_data_storage = {}
-
-local ACTOR_SAVE_USING_DRONE_ID = nil
-
-function actor_on_first_update()
-	if (ACTOR_SAVE_USING_DRONE_ID) and (db.actor:get_attached_vehicle() == nil) then
-		local obj = object_by_id(ACTOR_SAVE_USING_DRONE_ID)
-		return obj and db.actor:attach_vehicle(obj)
-	end
-end
-
-function server_entity_on_register(se,flag)
-	if (flag == "se_car") and (DRONE_MGR:IsDrone(se:section_name())) then
-		if (db.drones_data_storage[se.id] == nil) then
-			db.drones_data_storage[se.id] = {}
-		end
-	end
-end
-
-function server_entity_on_unregister(se,flag)
-	if (flag == "se_car") and (DRONE_MGR:IsDrone(se:section_name())) then
-		db.drones_data_storage[se.id] = nil
-	end
-end
-
-function save_state(m_data)
-	m_data.GT_DRONES_DATA_STORAGE = db.drones_data_storage
-end
-
-function load_state(m_data)
-	db.drones_data_storage = m_data.GT_DRONES_DATA_STORAGE or {}
 end
 
 --[[----------------------------------------------------------------------------------------------------
@@ -106,38 +49,181 @@ function get_drone_attachment_index(sec)
 	end
 end
 
-function drone_attach(id,itm,sec)
-	if not (id) then
-		return
-	end
-	local obj = object_by_id(id)
-	local mgr = obj and obj:binded_object()
-	local k = db.drones_data_storage[id]
-	if (k and k.attachment_sec == nil) then
-		if (itm) then
-			itms_manager.play_item_sound(itm,0.75)
-			k.attachment_sec = itm:section()
-			actor_lost_item(itm)
-		elseif (sec) then
-			k.attachment_sec = sec
+--[[----------------------------------------------------------------------------------------------------
+	Manager
+------------------------------------------------------------------------------------------------------]]
+_G.DRONE_MGR = nil
+
+class "CDroneManager"
+function CDroneManager:__init()
+	self.DRONE_STORAGE = {}
+	self.DRONE_ACT_OWN = {}
+	
+	self.cfg_item_to_object = {}
+	self.cfg_object_to_item = {}
+	
+	local ini = ini_file([[items\settings\deploy.ltx]])
+	if (ini:section_exist("drones")) then
+		for idx,val in pairs(utils_data.collect_section(ini,"drones",true)) do
+			if (ini_sys:section_exist(idx) and ini_sys:section_exist(val) and self:IsDrone(val)) then
+				self.cfg_item_to_object[idx] = val
+				self.cfg_object_to_item[val] = idx
+			else
+				DEBUG("Wrong parameters [%s] = %s | [%s] %s",idx,val,ini_sys:section_exist(idx),ini_sys:section_exist(val))
+			end
 		end
+	end
+	
+	RegisterScriptCallback("save_state",self)
+	RegisterScriptCallback("load_state",self)
+	RegisterScriptCallback("server_entity_on_register",self)
+	RegisterScriptCallback("server_entity_on_unregister",self)
+	RegisterScriptCallback("actor_on_first_update",self)
+	RegisterScriptCallback("actor_on_attach_vehicle",self)
+	RegisterScriptCallback("actor_on_detach_vehicle",self)
+	
+	self.drone_script_callback_registered = false
+end
+
+function CDroneManager:save_state(m_data)
+	m_data.GT_DRONE_STORAGE = self.DRONE_STORAGE
+	m_data.GT_DRONE_ACT_OWN = self.DRONE_ACT_OWN
+end
+
+function CDroneManager:load_state(m_data)
+	self.DRONE_STORAGE = m_data.GT_DRONE_STORAGE or {}
+	self.DRONE_ACT_OWN = m_data.GT_DRONE_ACT_OWN or {}
+end
+
+function CDroneManager:actor_on_first_update()
+	for idx=#self.DRONE_ACT_OWN,1,-1 do
+		local id = self.DRONE_ACT_OWN[idx]
+		local se = id and alife_object(id)
+		if (se) then
+			if not (simulation_objects.is_on_the_actor_level(se)) then
+				if (self:IsDrone(se:section_name())) then
+					DEBUG("Release drone for not in actor level [%s]",se:name())
+					alife_release(se)
+				else
+					DEBUG("ERROR: object invalid [%s]",se:name())
+					self:ActorOwnDel(se.id)
+				end
+			end
+		else
+			DEBUG("ERROR: object does not exist")
+			self:ActorOwnDel(se.id)
+		end
+	end
+end
+
+function CDroneManager:server_entity_on_register(se,flag)
+	if (flag == "se_car") and (self:IsDrone(se:section_name())) then
+		if (self.DRONE_STORAGE[se.id] == nil) then
+			self.DRONE_STORAGE[se.id] = {}
+		end
+		DEBUG("server_entity_on_register(%s)",se:name())
+	end
+end
+
+function CDroneManager:server_entity_on_unregister(se,flag)
+	if (flag == "se_car") and (self:IsDrone(se:section_name())) then
+		DEBUG("server_entity_on_unregister(%s)",se:name())
+		self:ActorOwnDel(se.id)
+		self.DRONE_STORAGE[se.id] = nil
+	end
+end
+
+function CDroneManager:actor_on_attach_vehicle(obj)
+	if (obj and DRONE_MGR:IsDrone(obj:section())) then
+		if (self.drone_script_callback_registered ~= true) then
+			self.drone_script_callback_registered = true
+			RegisterScriptCallback("on_key_press",on_key_press)
+		end
+	end
+end
+
+function CDroneManager:actor_on_detach_vehicle(obj)
+	if (obj and DRONE_MGR:IsDrone(obj:section())) then
+		if (self.drone_script_callback_registered == true) then
+			self.drone_script_callback_registered = false
+			UnregisterScriptCallback("on_key_press",on_key_press)
+		end
+	end
+end
+
+function CDroneManager:IsDrone(sec)
+	return sec and (SYS_GetParam(0,sec,"kind") == "v_drone") and true or false
+end
+
+function CDroneManager:ActorOwn()
+	return self.DRONE_ACT_OWN
+end
+
+function CDroneManager:ActorOwnAdd(id)
+	for i,v in ipairs(self.DRONE_ACT_OWN) do 
+		if (v == id) then 
+			return 
+		end
+	end
+	self.DRONE_ACT_OWN[#self.DRONE_ACT_OWN+1] = id
+end
+
+function CDroneManager:ActorOwnDel(id)
+	for i,v in ipairs(self.DRONE_ACT_OWN) do 
+		if (v == id) then
+			table.remove(self.DRONE_ACT_OWN,i)
+			break
+		end
+	end
+end
+
+function CDroneManager:ItemToObject(sec)
+	return sec and self.cfg_item_to_object[sec]
+end
+
+function CDroneManager:ObjectToItem(sec)
+	return sec and self.cfg_object_to_item[sec]
+end
+
+function CDroneManager:StorageById(id)
+	return id and self.DRONE_STORAGE[id]
+end
+
+function CDroneManager:Create(prs,actor_own)
+	local sec = prs and prs.sec
+	local pos = prs and prs.pos
+	local vid = prs and prs.vid
+	local gid = prs and prs.gid
+	local ang = prs and prs.ang
+	if (sec and pos and vid and gid and ang and self:IsDrone(sec)) then
+		local se = alife_create(sec,pos,vid,gid)
+		se.angle = vector():set(ang.y,ang.x,ang.z)
+		if (actor_own) then
+			DRONE_MGR:ActorOwnAdd(se.id)
+		end
+		return true
+	end
+	DEBUG("Wrong parameters %s %s %s %s %s",sec,pos,vid,gid,ang)
+	return false
+end
+
+function CDroneManager:DroneAttach(id,sec)
+	local obj = id and object_by_id(id)
+	local mgr = obj and obj:binded_object()
+	local k = self:StorageById(id)
+	if (k and k.attachment_sec == nil) then
+		k.attachment_sec = sec
 		if (mgr) then
 			mgr:AttachmentUpdate()
 		end
 	end
 end
 
-function drone_detach(id,spawn_item)
-	if not (id) then
-		return
-	end
-	local obj = object_by_id(id)
+function CDroneManager:DroneDetach(id)
+	local obj = id and object_by_id(id)
 	local mgr = obj and obj:binded_object()
-	local k = db.drones_data_storage[id]
-	if (k and k.attachment_sec) then
-		if (spawn_item) then
-			actor_give_item(k.attachment_sec)
-		end
+	local k = self:StorageById(id)
+	if (k and k.attachment_sec ~= nil) then
 		k.attachment_sec = nil
 		if (mgr) then
 			mgr:AttachmentUpdate()
@@ -145,14 +231,17 @@ function drone_detach(id,spawn_item)
 	end
 end
 
-function drone_pickup(id)
-	local obj = object_by_id(id)
-	local sec = obj and DRONE_MGR:DroneToItem(obj:section())
-	if (sec) then
-		drone_detach(id,true)
-		actor_give_item(sec)
-		alife_release(obj)
-	end
+--[[----------------------------------------------------------------------------------------------------
+	Storage
+------------------------------------------------------------------------------------------------------]]
+db.drones = {}
+
+function add_drone(obj)
+	db.drones[obj:id()] = obj
+end
+
+function del_drone(obj)
+	db.drones[obj:id()] = nil
 end
 
 function on_before_hit(obj,shit,bone_id)
@@ -173,7 +262,7 @@ KEY_DETONATE = KEY_DETONATE_DEF
 function on_key_press(dik)
 	if (dik == KEY_DETONATE) then
 		local obj = db.actor:get_attached_vehicle()
-		if (IsDrone(obj)) then
+		if (obj and DRONE_MGR:IsDrone(obj:section())) then
 			if (obj:binded_object()) then
 				obj:binded_object():ExplosiveDetonate(db.actor)
 			end
@@ -182,6 +271,7 @@ function on_key_press(dik)
 end
 
 --------------------------------------------------------------------------------------------------------
+--[[
 local DRONE_CONTROLLER_MAX_RANGE = 200
 local DRONE_CONTROLLER_WARNING_PPE = 52000
 
@@ -195,7 +285,7 @@ end
 
 function actor_on_update()
 	local obj = db.actor:get_attached_vehicle()
-	if (IsDrone(obj)) then
+	if (obj and DRONE_MGR:IsDrone(obj:section())) then
 		local range = math.pow(DRONE_CONTROLLER_MAX_RANGE * 0.9,2)
 		if (db.actor:position():distance_to_sqr(obj:position()) > range) then
 			drone_controller_warning_ppe_update(true)
@@ -204,29 +294,7 @@ function actor_on_update()
 		end
 	end
 end
-
-local drone_script_callback_registered = false
-function actor_on_attach_vehicle(obj)
-	if (IsDrone(obj)) then
-		if (drone_script_callback_registered ~= true) then
-			drone_script_callback_registered = true
-			RegisterScriptCallback("on_key_press",on_key_press)
-			--RegisterScriptCallback("actor_on_update",actor_on_update)
-		end
-	end
-end
-
-function actor_on_detach_vehicle(obj)
-	if (IsDrone(obj)) then
-		if (drone_script_callback_registered == true) then
-			drone_script_callback_registered = false
-			UnregisterScriptCallback("on_key_press",on_key_press)
-			--UnregisterScriptCallback("actor_on_update",actor_on_update)
-			--drone_controller_warning_ppe_update(false)
-		end
-	end
-end
-
+--]]
 --[[----------------------------------------------------------------------------------------------------
 	Binder
 ------------------------------------------------------------------------------------------------------]]
@@ -239,7 +307,7 @@ function CDroneBinder:__init(obj) super(obj)
 	db.storage[self.object:id()] = {}
 	self.oid = self.object:id()
 	self.car = self.object:get_car()
-	self.mem = db.drones_data_storage[self.oid]
+	self.mem = DRONE_MGR:StorageById(self.oid)
 	
 	self.attachment_bone = SYS_GetParam(0,self.object:section(),"attachment_bone")
 	
@@ -318,15 +386,12 @@ function CDroneBinder:TakeControl()
 end
 
 function CDroneBinder:ExplosiveDetonate(who)
-	if (self.object:alive()) then
-		local sec = self:ExplosiveSection()
-		if (sec) then
-			drone_detach(self.oid,false)
-			self.car:LoadExplosiveSection(sec)
-			self.car:SetInitiator(who and who:id() or self.oid)
-			self.object:kill(who)
-			DEBUG("ExplosiveDetonate() %s",time_global())
-		end
+	local sec = self:ExplosiveSection()
+	if (sec and self.object:alive()) then
+		DRONE_MGR:DroneDetach(self.oid)
+		self.car:LoadExplosiveSection(sec)
+		self.car:SetInitiator(who and who:id() or self.oid)
+		self.object:kill(who)
 	end
 end
 
@@ -523,7 +588,7 @@ function UIDroneInteract:Reset(obj)
 	end
 	self.oid = obj:id()
 	self.selected_idx = 0
-	local k = db.drones_data_storage[self.oid]
+	local k = DRONE_MGR:StorageById(self.oid)
 	
 	self.actions:RemoveAll()
 	self.actions:AddExistingItem(UIDroneInteractAction(self.actions:GetSize(),INTERACT_PICKUP))
@@ -550,15 +615,15 @@ function UIDroneInteract:SelectAction()
 	local k = self.actions:GetItemByIndex(self.selected_idx)
 	if (k) then
 		if (k.cmd == INTERACT_PICKUP) then
-			drone_pickup(self.oid)
+			self:Pickup()
 			return self:Close()
 		end
 		if (k.cmd == INTERACT_ATTACH) then
-			drone_attach(self.oid,db.actor:object(k.sec))
+			self:Attach(k.sec)
 			return self:Close()
 		end
 		if (k.cmd == INTERACT_DETACH) then
-			drone_detach(self.oid,true)
+			self:Detach()
 			return self:Close()
 		end
 	end
@@ -572,6 +637,34 @@ function UIDroneInteract:ChangeNextOption(flag)
 		self.selected_idx = clamp(self.selected_idx - 1,0,self.actions:GetSize() - 1)
 	else
 		self.selected_idx = clamp(self.selected_idx + 1,0,self.actions:GetSize() - 1)
+	end
+end
+
+function UIDroneInteract:Pickup()
+	local obj = object_by_id(self.oid)
+	local sec = obj and DRONE_MGR:ObjectToItem(obj:section())
+	if (sec) then
+		self:Detach()
+		actor_give_item(sec)
+		DRONE_MGR:DroneDetach(self.oid)
+		alife_release(obj)
+	end
+end
+
+function UIDroneInteract:Attach(sec)
+	local itm = db.actor:object(sec)
+	if (itm) then
+		itms_manager.play_item_sound(itm,0.75)
+		actor_lost_item(itm)
+		DRONE_MGR:DroneAttach(self.oid,sec)
+	end
+end
+
+function UIDroneInteract:Detach()
+	local k = DRONE_MGR:StorageById(self.oid)
+	if (k and k.attachment_sec) then
+		actor_give_item(k.attachment_sec)
+		DRONE_MGR:DroneDetach(self.oid)
 	end
 end
 
@@ -609,23 +702,11 @@ function UIDroneInteract:ScreenPosValid(vec)
 	return vec and (vec.x ~= -9999) and (vec.y ~= 0) and (vec.x <= 1024) and (vec.y <= 768)
 end
 
-function UIDroneInteract:ApplyScreenRatio(ele)
-	local r = (1024/768)/(device().width/device().height)
-	ele:SetWndSize(vector2():set(ele:GetWidth()*r,ele:GetHeight()))
-end
-
-
 --[[----------------------------------------------------------------------------------------------------
 	Registers
 ------------------------------------------------------------------------------------------------------]]
 function on_game_start()
-	RegisterScriptCallback("save_state",save_state)
-	RegisterScriptCallback("load_state",load_state)
-	--RegisterScriptCallback("actor_on_first_update",actor_on_first_update)
-	RegisterScriptCallback("server_entity_on_register",server_entity_on_register)
-	RegisterScriptCallback("server_entity_on_unregister",server_entity_on_unregister)
-	RegisterScriptCallback("actor_on_attach_vehicle",actor_on_attach_vehicle)
-	RegisterScriptCallback("actor_on_detach_vehicle",actor_on_detach_vehicle)
+	_G.DRONE_MGR = CDroneManager()
 end
 
 function DEBUG(str,...)

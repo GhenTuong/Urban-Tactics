@@ -8,6 +8,7 @@ Overrides:
 axr_npc_vs_heli.best_heli
 axr_npc_vs_heli.action_npc_vs_heli:execute()
 --]]
+
 --[[----------------------------------------------------------------------------------------------------
 	Utilities
 ------------------------------------------------------------------------------------------------------]]
@@ -48,7 +49,13 @@ function best_enemy_drone(npc)
 	for id,obj in pairs(db.drones) do
 		local dis = distance_xz_sqr(npc,obj)
 		if (obj:alive() and (d > dis)) then
-			local who = obj:get_holder_owner()
+			local who = obj:get_car() and obj:get_car():Owner()
+			---[[
+			if (true) then
+				o = obj
+				d = dis
+			end
+			--]]
 			if (who and npc:relation(who) == game_object.enemy) then
 				o = obj
 				d = dis
@@ -76,13 +83,13 @@ function can_npc_fight_drone(npc,obj)
 	return true
 end
 
-local f_best_heli = nil
-function best_heli(npc)
+local best_heli = axr_npc_vs_heli.best_heli
+axr_npc_vs_heli.best_heli = function(npc)
 	local obj = best_enemy_drone(npc)
 	if (obj and can_npc_fight_drone(npc,obj)) then
 		return obj
 	end
-	return f_best_heli(npc)
+	return best_heli(npc)
 end
 
 function axr_npc_vs_heli.action_npc_vs_heli:drone_execute(obj)
@@ -127,21 +134,4 @@ function axr_npc_vs_heli.action_npc_vs_heli:drone_execute(obj)
 	if (self:try_go_cover(npc,obj:position(),10) == nil) then
 		self:try_to_strafe(npc)
 	end
-end
-
---[[----------------------------------------------------------------------------------------------------
-	Overrides
-------------------------------------------------------------------------------------------------------]]
-function overrides()
-	if (f_best_heli == nil) then
-		f_best_heli = axr_npc_vs_heli.best_heli
-		axr_npc_vs_heli.best_heli = best_heli
-	end
-end
-
---[[----------------------------------------------------------------------------------------------------
-	Registers
-------------------------------------------------------------------------------------------------------]]
-function on_game_start()
-	overrides()
 end

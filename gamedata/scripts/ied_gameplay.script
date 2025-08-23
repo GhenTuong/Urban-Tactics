@@ -61,13 +61,15 @@ function CIedManager:actor_on_first_update()
 	for idx=#self.IED_ACT_OWN,1,-1 do
 		local id = self.IED_ACT_OWN[idx]
 		local se = id and alife_object(id)
-		if (se and not simulation_objects.is_on_the_actor_level(se)) then
-			if (self:IsIed(se:section_name())) then
-				DEBUG("Release ied for not in actor level [%s]",se:name())
-				alife_release(se)
-			else
-				DEBUG("ERROR: object invalid [%s]",se:name())
-				self:ActorOwnDel(se.id)
+		if (se) then
+			if not (simulation_objects.is_on_the_actor_level(se)) then
+				if (self:IsIed(se:section_name())) then
+					DEBUG("Release ied for not in actor level [%s]",se:name())
+					alife_release(se)
+				else
+					DEBUG("ERROR: object invalid [%s]",se:name())
+					self:ActorOwnDel(se.id)
+				end
 			end
 		else
 			DEBUG("ERROR: object does not exist")
@@ -401,6 +403,7 @@ function UIDeploy:Deploy()
 	k.fix = self.dir and true or false
 	k.num = generate_phone_number()
 	if (IED_MGR:Create(k,true)) then
+		itms_manager.play_item_sound(obj,0.75)
 		news_manager.relocate_item(db.actor,"out",obj:section())
 		alife_release(obj)
 	end

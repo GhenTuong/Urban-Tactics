@@ -59,7 +59,6 @@ function menu_func_time_event()
 end
 
 function actor_on_update()
-	DEBUG("actor_on_update() %s %s %s",get_console_cmd(1,"g_3d_pda"),db.actor:active_slot(),ActorMenu.get_pda_menu():IsShown())
 	if not (get_console_cmd(1,"g_3d_pda") and db.actor:active_slot() == 14 or ActorMenu.get_pda_menu():IsShown()) then
 		local pda = db.actor:item_in_slot(14)
 		if (pda) then
@@ -71,7 +70,7 @@ function actor_on_update()
 end
 
 function actor_on_detach_vehicle(obj)
-	if (IsDrone(obj)) then
+	if (obj and DRONE_MGR:IsDrone(obj:section())) then
 		local go = object_by_id(resume_controller_id)
 		local se = resume_controller_id and alife_object(resume_controller_id)
 		if (go and (go:clsid() == clsid.device_pda) and se and (se.parent_id == AC_ID) and db.actor:alive()) then
@@ -105,7 +104,7 @@ class "UIDeviceItem" (CUIListBoxItem)
 function UIDeviceItem:__init(obj) super(obj)
 	self:GetTextItem():SetText("")
 	self.oid = obj:id()
-	local k = db.drones_data_storage[self.oid]
+	local k = DRONE_MGR:StorageById(self.oid)
 	
 	self.str_name = self:AddTextField("",1)
 	self.str_name:SetWndRect(Frect():set(5,0,300,17))
@@ -133,7 +132,7 @@ function UIDeviceItem:__init(obj) super(obj)
 end
 
 function UIDeviceItem:DeviceUpdate()
-	local k = db.drones_data_storage[self.oid]
+	local k = DRONE_MGR:StorageById(self.oid)
 	local obj = object_by_id(self.oid)
 	if (obj) then
 		self.str_attachment:SetText(self:GetAttachmentText(k))
@@ -226,7 +225,6 @@ function UIController:Update()
 end
 
 function UIController:Reset()
-	DEBUG("UIController:Reset()")
 	RegisterScriptCallback("actor_on_update",actor_on_update)
 	self.dialog:Show(true)
 	ActorMenu.get_pda_menu():GetTabControl():Show(false)
