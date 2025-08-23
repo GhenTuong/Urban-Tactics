@@ -18,19 +18,6 @@ function cam_xform()
 	return matrix():setHPB(dir:getH(),dir:getP(),0):translate_over(pos)
 end
 
-function display_key(dik)
-	if not (ui_mcm and ui_mcm.display_key) then
-		return GT("ui_emplacement_mcmwarning")
-	end
-	if (dik == DIK_keys.MOUSE_1) then
-		return GT("ui_mcm_emplacement_key_mouse_1")
-	end
-	if (dik == DIK_keys.MOUSE_2) then
-		return GT("ui_mcm_emplacement_key_mouse_2")
-	end
-	return ui_mcm.display_key(dik)
-end
-
 --[[----------------------------------------------------------------------------------------------------
 	Main
 ------------------------------------------------------------------------------------------------------]]
