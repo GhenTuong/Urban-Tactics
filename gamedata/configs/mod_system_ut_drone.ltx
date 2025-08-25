@@ -24,17 +24,19 @@ use1_action_functor			= drone_gameplay.drone_deploy_func
 ;	Objects
 ;----------------------------------------------------------------------------------------------------
 [handheld_drone_veh]:m_drone_base
+inv_name					= handheld_drone_name
+inv_name_short				= handheld_drone_name
+description					= handheld_drone_desc
+
 control_neutral				= 1.0
 control_ele_max				= 3.0
 control_yaw_max				= 3.0
 control_pit_max				= 2.0
 control_rol_max				= 2.0
-attachment_bone				= attach_bone
 fly_weight_min				= 20
 
-inv_name					= handheld_drone_name
-inv_name_short				= handheld_drone_name
-description					= handheld_drone_desc
+attachment_bone				= attach_bone
+attachment_data				= ied_rpg_new,ied_new,ied_chinese
 
 [handheld_drone]:m_drone_item
 visual						= dynamics\vehicles\drone\drone.ogf

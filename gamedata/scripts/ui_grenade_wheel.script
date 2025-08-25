@@ -1,0 +1,264 @@
+--[[----------------------------------------------------------------------------------------------------
+	GhenTuong
+	Discord: GhenTuong#1278
+	Twitter: https://twitter.com/GhenTuong
+------------------------------------------------------------------------------------------------------]]
+
+-- Anomaly's grenades always present as the first 3 options. 
+GRENADE_ORIGINAL = {
+	"grenade_f1",
+	"grenade_rgd5",
+	"grenade_gd-05",
+}
+
+-- Garbage. Not worth staying in my UI.
+GRENADE_EXCLUDED = {
+	["grenade_smoke"] = true,
+}
+
+--[[----------------------------------------------------------------------------------------------------
+	Keys
+------------------------------------------------------------------------------------------------------]]
+KEY_GRENADE_WHEEL_DEF = DIK_keys.DIK_Y
+KEY_GRENADE_WHEEL = KEY_GRENADE_WHEEL_DEF
+
+function on_key_release(dik)
+	if (dik == KEY_GRENADE_WHEEL) then
+		if (db.actor:get_attached_vehicle() == nil) then
+			wheel_start()
+		end
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	UIWheelGrenade
+------------------------------------------------------------------------------------------------------]]
+local nums_dik = {}
+
+GUI = nil
+
+function wheel_start()
+	hide_hud_inventory()
+	if (GUI == nil) then
+		GUI = UIWheelGrenade()
+	end
+	if (GUI) and (not GUI:IsShown()) then
+		GUI:ShowDialog(true)
+		GUI:Reset()
+		Register_UI("UIWheelGrenade","ui_grenade_wheel")
+	end
+end
+
+class "UIWheelGrenade" (CUIScriptWnd)
+function UIWheelGrenade:__init() super()
+	self.grenade_class = {
+		[clsid.wpn_grenade_f1]		= true,
+		[clsid.wpn_grenade_f1_s]	= true,
+		[clsid.wpn_grenade_rgd5]	= true,
+		[clsid.wpn_grenade_rgd5_s]	= true,
+	}
+	
+	self.grenade_max = 12
+	self.grenade_inv = {}
+	self.grenade_lst = {}
+	
+	self.avail		= {}
+	self.key		= {}
+	
+	for i=1,9 do
+		nums_dik[DIK_keys["DIK_" .. i]] = i
+		nums_dik[DIK_keys["DIK_NUMPAD" .. i]] = i
+	end
+	
+	self:InitControls()
+	self:InitCallBacks()
+end
+
+function UIWheelGrenade:__finalize()
+end
+
+function UIWheelGrenade:InitControls()
+	self:SetWndRect(Frect():set(0,0,1024,768))
+	self:SetAutoDelete(true)
+	self:AllowMovement(true)
+	
+	self.xml = CScriptXmlInit()
+	local xml = self.xml
+	xml:ParseFile("ui_wheel_ammo.xml")
+	
+	self.dialog	= xml:InitStatic("wheel", self)
+	self.background = xml:InitStatic("wheel:background", self.dialog)
+	self.extended = xml:InitStatic("wheel:extended", self.dialog)
+	
+	local box_type = ":all"
+	self.box_r = xml:InitStatic("wheel:result", self.dialog)
+	self.box_icon_tmp_r = xml:InitStatic("ammo:icon", self.box_r)
+	
+	self.box = {}
+	self.box_icon = {}
+	self.box_icon_r = {}
+	self.box_icon_tmp = {}
+	self.box_num = {}
+	self.box_txt = {}
+	self.box_txt_r = {}
+	self.box_btn = {}
+	self.box_hl_1 = {}
+	self.box_hl_2 = {}
+	for i=1,self.grenade_max do
+		self.box[i]          = xml:InitStatic("wheel" .. box_type .. ":box_" .. i, self.dialog)
+		self.box_hl_1[i]     = xml:InitStatic("ammo:highlight", self.box[i])
+		self.box_hl_2[i]     = xml:InitStatic("ammo:highlight", self.box[i])
+		self.box_icon[i]     = xml:InitStatic("ammo:icon", self.box[i])
+		self.box_icon_tmp[i] = xml:InitStatic("ammo:icon", self.box[i])
+		self.box_num[i]      = xml:InitTextWnd("ammo:num", self.box[i])
+		self.box_txt[i]      = xml:InitTextWnd("ammo:text", self.box[i])
+		self.box_btn[i]      = xml:Init3tButton("ammo:btn", self.box[i])
+		self:Register(self.box_btn[i],"btn_" .. i)
+		self.box_icon_r[i]   = xml:InitStatic("ammo:icon", self.box_r)
+		self.box_txt_r[i]    = xml:InitTextWnd("ammo:text_r", self.box_r)
+	end
+end
+
+function UIWheelGrenade:InitCallBacks()
+	for i=1,self.grenade_max do
+		local _wrapper = function(handler)
+			self:OnAmmo(i)
+		end
+		self:AddCallback("btn_" .. i,ui_events.BUTTON_CLICKED,_wrapper,self)
+	end
+end
+
+function UIWheelGrenade:Update()
+	CUIScriptWnd.Update(self)
+	for i=1,self.grenade_max do
+		if self.box_btn[i] then
+			if self.box_btn[i]:IsCursorOverWindow() then
+				self.box_icon_r[i]:Show(true)
+				self.box_txt_r[i]:Show(true)
+			else
+				self.box_icon_r[i]:Show(false)
+				self.box_txt_r[i]:Show(false)
+			end
+		end
+	end
+end
+
+function UIWheelGrenade:Reset()
+	empty_table(self.grenade_inv)
+	local function itr(who,itm)
+		local sec = itm:section()
+		if (self.grenade_class[itm:clsid()] and not GRENADE_EXCLUDED[sec]) then
+			self.grenade_inv[sec] = (self.grenade_inv[sec] or 0) + 1
+		end
+	end
+	db.actor:iterate_inventory(itr,nil)
+	
+	local sec_added_to_list = {}
+	empty_table(self.grenade_lst)
+	-- Original.
+	for _,sec in ipairs(GRENADE_ORIGINAL) do
+		if (sec_added_to_list[sec] == nil) then
+			sec_added_to_list[sec] = true
+			self.grenade_lst[#self.grenade_lst+1] = sec
+		end
+	end
+	-- Lethal
+	for sec,num in pairs(self.grenade_inv) do
+		if (sec_added_to_list[sec] == nil) and (SYS_GetParam(2,sec,"blast",0) ~= 0) then
+			sec_added_to_list[sec] = true
+			self.grenade_lst[#self.grenade_lst+1] = sec
+		end
+	end
+	-- Non lethal
+	for sec,num in pairs(self.grenade_inv) do
+		if (sec_added_to_list[sec] == nil) and (SYS_GetParam(2,sec,"blast",0) == 0) then
+			sec_added_to_list[sec] = true
+			self.grenade_lst[#self.grenade_lst+1] = sec
+		end
+	end
+	
+	local cnt = 0
+	empty_table(self.key)
+	for i=1,self.grenade_max do
+		local section = self.grenade_lst[i]
+		if (section) then
+			self.box[i]:Show(true)
+			self.box_hl_1[i]:Show(true)
+			self.box_hl_2[i]:Show(true)
+			
+			self.avail[i] = self.grenade_inv[section] and true or false
+			utils_xml.set_icon(section,(not self.avail[i]),self.box_icon[i],self.box_icon_tmp[i])
+			utils_xml.set_icon(section,nil,self.box_icon_tmp_r,self.box_icon_r[i])
+			
+			cnt = cnt + 1
+			self.key[cnt] = i
+			if (self.avail[i] and i <= 9) then
+				self.box_num[i]:SetText(cnt)
+			else
+				self.box_num[i]:SetText("")
+			end
+			
+			-- Show ammo count
+			self.box_txt[i]:SetText("x" .. (self.avail[i] and self.grenade_inv[section] or 0))
+			self.box_txt_r[i]:SetText(ui_item.get_sec_name(section))
+		else
+			self.avail[i] = false
+			self.box[i]:Show(false)
+		end
+	end
+end
+
+function UIWheelGrenade:OnAmmo(n)
+	local sec = self.grenade_lst[n]
+	local use = db.actor:active_item()
+	if (use == nil) or (use:section() ~= sec) then
+		local obj = db.actor:object(sec)
+		if (obj) then
+			db.actor:make_item_active(obj)
+		end
+	end
+	self:Close()
+end
+
+function UIWheelGrenade:OnKeyboard(dik,keyboard_action)
+	local res = CUIScriptWnd.OnKeyboard(self,dik,keyboard_action)
+	if (res == false) then
+		if (keyboard_action == ui_events.WINDOW_KEY_RELEASED) then
+			local key = dik_to_bind(dik)
+			local num = nums_dik[dik]
+			if (num and self.key[num] and self.avail[num]) then
+				self:OnAmmo(self.key[num])
+			elseif (key == key_bindings.kQUIT) or (key == key_bindings.kUSE) then
+				self:Close()
+			end
+		end
+	end
+	return res
+end
+
+function UIWheelGrenade:Close()
+	if (self:IsShown()) then
+		self:HideDialog()
+		self:Show(false)
+		Unregister_UI("UIWheelGrenade")
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Registers
+------------------------------------------------------------------------------------------------------]]
+function on_game_start()
+	RegisterScriptCallback("on_key_release",on_key_release)
+end
+
+function DEBUG(str,...)
+	local func = debug.getinfo(2,"S").source
+	local line = debug.getinfo(2,"l").currentline
+	func = string.sub(func,#func - string.find(string.reverse(func),"\\") + 2,#func)
+	local p = {...}
+	if (p and (#p ~= 0)) then
+		printf(string.format("[GhenTuong] %s:%s | %s",tostring(func),tostring(line),str),...)
+	else
+		printf(string.format("[GhenTuong] %s:%s | ",tostring(func),tostring(line)) .. "%s",str)
+	end
+end

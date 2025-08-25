@@ -3,6 +3,9 @@
 	Discord: GhenTuong#1278
 	Twitter: https://twitter.com/GhenTuong
 	To do:
+Implement inventory for CCar.
+Make attachments to be inventory items instead.
+Then we can transfer item in and out of CCar and only have to store item id.
 ------------------------------------------------------------------------------------------------------]]
 local GT = game.translate_string
 
@@ -27,29 +30,6 @@ function actor_lost_item(itm)
 end
 
 --[[----------------------------------------------------------------------------------------------------
-	Main
-------------------------------------------------------------------------------------------------------]]
---[[
-To do:
-Implement inventory for CCar.
-Make attachments to be inventory items instead.
-Then we can transfer item in and out of CCar and only have to store item id.
---]]
-DRONE_ATTACHMENT_ITEMS = {
-	{sec = "ied_chinese",explosive = "ied_chinese_blow"},
-	{sec = "ied_rpg_new",explosive = "rpg_new_blow"},
-	{sec = "ied_new",explosive = "ied_new_blow"},
-}
-
-function get_drone_attachment_index(sec)
-	for i,v in ipairs(DRONE_ATTACHMENT_ITEMS) do
-		if (sec and sec == v.sec) then
-			return i
-		end
-	end
-end
-
---[[----------------------------------------------------------------------------------------------------
 	Manager
 ------------------------------------------------------------------------------------------------------]]
 _G.DRONE_MGR = nil
@@ -62,14 +42,34 @@ function CDroneManager:__init()
 	self.cfg_item_to_object = {}
 	self.cfg_object_to_item = {}
 	
-	local ini = ini_file([[items\settings\deploy.ltx]])
-	if (ini:section_exist("drones")) then
-		for idx,val in pairs(utils_data.collect_section(ini,"drones",true)) do
-			if (ini_sys:section_exist(idx) and ini_sys:section_exist(val) and self:IsDrone(val)) then
-				self.cfg_item_to_object[idx] = val
-				self.cfg_object_to_item[val] = idx
+	do
+		local ini = ini_file([[items\settings\deploy.ltx]])
+		if (ini:section_exist("drones")) then
+			for idx,val in pairs(utils_data.collect_section(ini,"drones",true)) do
+				if (ini_sys:section_exist(idx) and ini_sys:section_exist(val) and self:IsDrone(val)) then
+					self.cfg_item_to_object[idx] = val
+					self.cfg_object_to_item[val] = idx
+				else
+					DEBUG("Wrong parameters [%s] %s",idx,val)
+				end
+			end
+		end
+	end
+	
+	self.cfg_attachments = {}
+	self.cfg_drone_attachment_data = {}
+	do
+		local ini = ini_file([[misc\drone_attachments.ltx]])
+		for idx,val in pairs(utils_data.collect_section(ini,"attachments",true)) do
+			local tmp = val and str_explode(val,":")
+			local kind = tmp and tmp[1]
+			local sec = tmp and tmp[2]
+			if (kind and sec and ini_sys:section_exist(idx) and ini_sys:section_exist(sec)) then
+				self.cfg_attachments[idx] = {}
+				self.cfg_attachments[idx].kind = kind
+				self.cfg_attachments[idx].sec = sec
 			else
-				DEBUG("Wrong parameters [%s] = %s | [%s] %s",idx,val,ini_sys:section_exist(idx),ini_sys:section_exist(val))
+				DEBUG("Wrong parameters [%s] %s",idx,val)
 			end
 		end
 	end
@@ -229,6 +229,28 @@ function CDroneManager:DroneDetach(id)
 			mgr:AttachmentUpdate()
 		end
 	end
+end
+
+function CDroneManager:Attachments()
+	return self.cfg_attachments
+end
+
+function CDroneManager:DroneAttachmentData(sec)
+	if (self.cfg_drone_attachment_data[sec] == nil) then
+		local lst = {}
+		local str = sec and SYS_GetParam(0,sec,"attachment_data")
+		if (str) then
+			for _,val in ipairs(str_explode(str,",")) do
+				if (self.cfg_attachments[val]) then
+					lst[#lst+1] = val
+				else
+					DEBUG("[%s] attachment does not exist [%s]",sec,val)
+				end
+			end
+		end
+		self.cfg_drone_attachment_data[sec] = lst
+	end
+	return self.cfg_drone_attachment_data[sec]
 end
 
 --[[----------------------------------------------------------------------------------------------------
@@ -397,9 +419,10 @@ end
 
 function CDroneBinder:ExplosiveSection()
 	local sec = self.mem and self.mem.attachment_sec
-	local idx = sec and get_drone_attachment_index(sec)
-	local tmp = idx and DRONE_ATTACHMENT_ITEMS[idx]
-	return tmp and tmp.explosive
+	local tmp = DRONE_MGR:Attachments()[sec]
+	if (tmp and (tmp.kind == "exp")) then
+		return tmp.sec
+	end
 end
 
 ----------------------------------------------------------------------------------------------------
@@ -587,16 +610,18 @@ function UIDroneInteract:Reset(obj)
 		return self:Close()
 	end
 	self.oid = obj:id()
+	self.sec = obj:section()
 	self.selected_idx = 0
-	local k = DRONE_MGR:StorageById(self.oid)
 	
 	self.actions:RemoveAll()
 	self.actions:AddExistingItem(UIDroneInteractAction(self.actions:GetSize(),INTERACT_PICKUP))
+	
+	local k = DRONE_MGR:StorageById(self.oid)
 	if (k and k.attachment_sec) then
 		self.actions:AddExistingItem(UIDroneInteractAction(self.actions:GetSize(),INTERACT_DETACH,k.attachment_sec))
 	else
-		for _,v in ipairs(DRONE_ATTACHMENT_ITEMS) do
-			local itm = v.sec and db.actor:object(v.sec)
+		for _,sec in ipairs(DRONE_MGR:DroneAttachmentData(self.sec)) do
+			local itm = sec and db.actor:object(sec)
 			if (itm) then
 				self.actions:AddExistingItem(UIDroneInteractAction(self.actions:GetSize(),INTERACT_ATTACH,itm:section()))
 			end

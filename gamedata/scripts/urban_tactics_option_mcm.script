@@ -1,17 +1,25 @@
---[[
+--[[----------------------------------------------------------------------------------------------------
 	GhenTuong
 	Discord: GhenTuong#1278
 	Twitter: https://twitter.com/GhenTuong
---]]
-OPT_PLAN_MINE_KEY = false
+------------------------------------------------------------------------------------------------------]]
+local GT = game.translate_string
+
+local version = "1.0"
 
 function on_option_change()
 	if (ui_mcm) then
-		ui_grenade_trajectory.TRAJECTORY_GRD = ui_mcm.get("urban_tactics/opt_show_trajectory_grd")
-		ui_grenade_trajectory.TRAJECTORY_LCH = ui_mcm.get("urban_tactics/opt_show_trajectory_lch")
+		ui_grenade_trajectory.TRAJECTORY_GRD = ui_mcm.get("gt/urban_tactics/trajectory_grd")
+		ui_grenade_trajectory.TRAJECTORY_LCH = ui_mcm.get("gt/urban_tactics/trajectory_lch")
 		
-		OPT_PLAN_MINE_KEY = ui_mcm.get("urban_tactics/opt_plan_mine_key")
-		drone_object.KEY_DETONATE = ui_mcm.get("urban_tactics/drone_key_detonate") or drone_object.KEY_DETONATE_DEF
+		ui_grenade_wheel.KEY_GRENADE_WHEEL = ui_mcm.get("gt/urban_tactics/key_grenade_wheel") or ui_grenade_wheel.KEY_GRENADE_WHEEL_DEF
+		
+		ui_phone_nokia.KEY_BACK = ui_mcm.get("gt/urban_tactics/key_nokia_back") or ui_phone_nokia.KEY_BACK_DEF
+		ui_phone_nokia.KEY_NEXT = ui_mcm.get("gt/urban_tactics/key_nokia_next") or ui_phone_nokia.KEY_NEXT_DEF
+		ui_phone_nokia.KEY_CALL = ui_mcm.get("gt/urban_tactics/key_nokia_call") or ui_phone_nokia.KEY_CALL_DEF
+		ui_phone_nokia.KEY_RESET = ui_mcm.get("gt/urban_tactics/key_nokia_reset") or ui_phone_nokia.KEY_RESET_DEF
+		
+		drone_object.KEY_DETONATE = ui_mcm.get("gt/urban_tactics/key_drone_detonate") or drone_object.KEY_DETONATE_DEF
 	end
 end
 
@@ -22,19 +30,29 @@ function on_mcm_load()
 		sh = true,
 		gr = {
 			{id = "tittle_line_1",type = "line"},
-			{id = "tittle_name",type = "title",text = "ui_mcm_menu_urban_tactics"},
+			{id = "tittle_name",type = "title",text = strformat(GT("ui_mcm_gt_urban_tactics_tittle"),version)},
 			{id = "tittle_line_2",type = "line"},
-			{id = "opt_show_trajectory_grd",type = "check",val = 1,def = true,},
-			{id = "opt_show_trajectory_lch",type = "check",val = 1,def = true,},
-			{id = "mine_line",type = "line",},
-			{id = "opt_plan_mine_key",type = "check",val = 1,def = false,},
 			
+			{id = "trajectory_grd",type = "check",val = 1,def = true},
+			{id = "trajectory_lch",type = "check",val = 1,def = true},
+			
+			{id = "key_grenade_wheel",type = "key_bind",val = 2,def = ui_grenade_wheel.KEY_GRENADE_WHEEL_DEF},
+			{id = "grenade_wheel_line",type = "line"},
+			
+			{id = "ied_name",type = "title",text = "ui_mcm_gt_urban_tactics_ied_name"},
+			{id = "ied_desc",type = "desc",text = "ui_mcm_gt_urban_tactics_ied_desc"},
+			{id = "key_nokia_back",type = "key_bind",val = 2,def = ui_phone_nokia.KEY_BACK_DEF},
+			{id = "key_nokia_next",type = "key_bind",val = 2,def = ui_phone_nokia.KEY_NEXT_DEF},
+			{id = "key_nokia_call",type = "key_bind",val = 2,def = ui_phone_nokia.KEY_CALL_DEF},
+			{id = "key_nokia_reset",type = "key_bind",val = 2,def = ui_phone_nokia.KEY_RESET_DEF},
+			{id = "ied_line",type = "line"},
+			
+			{id = "drone_name",type = "title",text = "ui_mcm_gt_urban_tactics_drone_name"},
+			{id = "drone_desc",type = "desc",text = "ui_mcm_gt_urban_tactics_drone_desc"},
+			{id = "key_drone_detonate",type = "key_bind",val = 2,def = drone_object.KEY_DETONATE_DEF},
 			{id = "drone_line",type = "line"},
-			{id = "drone_name",type = "title",text = "ui_mcm_urban_tactics_drone_name"},
-			{id = "drone_desc",type = "desc",text = "ui_mcm_urban_tactics_drone_desc"},
-			{id = "drone_key_detonate",type = "key_bind",val = 2,def = drone_object.KEY_DETONATE_DEF},
 		}
-	}
+	}, "gt"
 end
 
 function on_game_start()

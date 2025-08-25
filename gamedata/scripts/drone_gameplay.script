@@ -298,6 +298,8 @@ function on_key_release(dik)
 		drone_object.actor_give_item("ied_new")
 		drone_object.actor_give_item("device_nokia")
 		drone_object.actor_give_item("tool_tripwire_f1")
+		drone_object.actor_give_item("grenade_m18")
+		drone_object.actor_give_item("grenade_rdg2")
 	end
 end
 

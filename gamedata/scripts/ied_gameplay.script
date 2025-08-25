@@ -20,8 +20,8 @@ _G.IED_MGR = nil
 class "CIedManager"
 function CIedManager:__init()
 	self.IED_STORAGE = {}
-	self.IED_INITIAL = {}
 	self.IED_ACT_OWN = {}
+	self.IED_INITIAL = {}
 	
 	self.cfg_item_to_blow = {}
 	self.cfg_blow_to_item = {}

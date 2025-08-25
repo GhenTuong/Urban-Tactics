@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<string_table>
+	<string id="ui_mcm_menu_gt">
+		<text>GT</text>
+	</string>
+	
+	<string id="ui_mcm_menu_urban_tactics">
+		<text>Urban Tactics</text>
+	</string>
+	
+	<string id="ui_mcm_gt_urban_tactics_tittle">
+		<text>Urban Tactics %s</text>
+	</string>
+	
+	<string id="ui_mcm_gt_urban_tactics_trajectory_grd">
+		<text>Show grenade trajectory</text>
+	</string>
+	<string id="ui_mcm_gt_urban_tactics_trajectory_lch">
+		<text>Show grenade launcher trajectory</text>
+	</string>
+<!------------------------------------------------------>
+	<string id="ui_mcm_gt_urban_tactics_key_grenade_wheel">
+		<text>Grenade wheel</text>
+	</string>
+
+<!------------------------------------------------------>
+	<string id="ui_mcm_gt_urban_tactics_ied_name">
+		<text>Improvised explosive device</text>
+	</string>
+	<string id="ui_mcm_gt_urban_tactics_ied_desc">
+<text>Note:
+\n• Deployed IEDs and tripwire traps will disappear when you leave the current map.
+\n• Deployed IEDs and tripwire traps can be recovered.
+\n• Use a cellphone to detonate deployed IEDs.
+</text>
+	</string>
+	<string id="ui_mcm_gt_urban_tactics_key_nokia_back">
+		<text>Select previous IED</text>
+	</string>
+	<string id="ui_mcm_gt_urban_tactics_key_nokia_next">
+		<text>Select next IED</text>
+	</string>
+	<string id="ui_mcm_gt_urban_tactics_key_nokia_call">
+		<text>Detonate IED</text>
+	</string>
+	<string id="ui_mcm_gt_urban_tactics_key_nokia_reset">
+		<text>Reset cellphone</text>
+	</string>
+
+<!------------------------------------------------------>
+	<string id="ui_mcm_gt_urban_tactics_drone_name">
+		<text>Drone</text>
+	</string>
+	<string id="ui_mcm_gt_urban_tactics_drone_desc">
+<text>Note:
+\n• Deployed drones will disappear when you leave the current map.
+\n• Hostile stalkers will shoot drones when flying close.
+\n• Mutants will be alert when drones flying close.
+\n• When drones being shotdown, attached explosive won't detonate and will disappear.
+\n
+\nMovement:
+\n	Key [Sprint] -> Fly up.
+\n	Key [Crouch] -> Fly down.
+\n	Key [Forward] -> Fly forward.
+\n	Key [Backward] -> Fly backward.
+\n	Key [Strafe left] -> Strafe left.
+\n	Key [Strafe right] -> Strafe right.
+\n	Key [Lean left] -> Steer left.
+\n	Key [Lean right] -> Steer right.
+\n
+\nAction:
+\n	Key [Use] -> Stop controlling drone.
+\n	Key [Zoom] -> Camera zoom, supports both hold and toggle modes.
+</text>
+	</string>
+	<string id="ui_mcm_gt_urban_tactics_key_drone_detonate">
+		<text>Detonate attached explosive</text>
+	</string>
+</string_table>
