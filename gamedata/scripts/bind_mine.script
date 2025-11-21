@@ -247,8 +247,11 @@ function UIDeploy:__init(obj) super(obj)
 	self.atm_name = "deploy_mine"
 	self.dist_def = 1
 	self.dist_max = 3
-	self.horz_min = 1
-	self.horz_max = 2
+	
+	self.radius_min = 0.5
+	self.radius_max = 1.0
+	self.height_min = -1.8
+	self.height_max = 0.0
 	
 	self.exclusive_radius = 0.4
 	self.exclusive_height = 0.05
@@ -297,24 +300,23 @@ function UIDeploy:Update()
 		end
 	end
 	
-	self.pos = self:GetAttachmentPosition()
-	self.dir = self:GetAttachmentRotation(self.pos)
+	self.pos = self:GetDeployPosition()
+	self.dir = self:GetDeployRotation()
 	
 	if (self.pos and self.dir) then
-		if (db.actor:get_attachment(self.atm_name) == nil) then
-			db.actor:add_attachment(self.atm_name,self.vis):set_type(script_attachment_type.CamAttached)
+		if (level.get_attachment(self.atm_name) == nil) then
+			level.add_attachment(self.atm_name,self.vis)
 		end
-		local atm = db.actor:get_attachment(self.atm_name)
+		local atm = level.get_attachment(self.atm_name)
 		if (atm) then
 			atm:set_position(self.pos)
-			local h = 180
-			local p = math.deg(device().cam_dir:getP()) - math.deg(self.dir:getP())
-			local b = self.rotation
-			atm:set_rotation(h,p,b)
+			local h = math.deg(self.dir:getH())
+			local p = math.deg(self.dir:getP())
+			atm:set_rotation(h,p,0)
 		end
 	else
-		if (db.actor:get_attachment(self.atm_name)) then
-			db.actor:remove_attachment(self.atm_name)
+		if (level.get_attachment(self.atm_name)) then
+			level.remove_attachment(self.atm_name)
 		end
 	end
 end
@@ -326,7 +328,7 @@ function UIDeploy:Deploy()
 	if (self:CheckDeployPosition() == false) then
 		return
 	end
-	local atm = db.actor:get_attachment(self.atm_name)
+	local atm = level.get_attachment(self.atm_name)
 	local xfm = atm and atm:get_transform()
 	if not (xfm) then
 		return
@@ -357,30 +359,24 @@ function UIDeploy:GetAttachmentVisual(obj)
 	return sec and SYS_GetParam(0,sec,"visual")
 end
 
-function UIDeploy:GetAttachmentPosition()
+function UIDeploy:GetDeployPosition()
 	local pos = device().cam_pos
 	local dir = device().cam_dir
 	if (dir:getP() > 0) then
 		return
 	end
 	local ray = ray_pick(pos,dir,self.dist_max,2,db.actor)
-	local vec = ray:query() and vector():set(0,0,ray:get_distance())
-	if (vec) then
-		local tmp = vector():set(vec)
-		cam_xform():transform_tiny(tmp)
-		local dis = db.actor:position():distance_to_xz_sqr(tmp)
-		if (dis > math.pow(self.horz_min,2)) and (dis < math.pow(self.horz_max,2)) then
-			return vec
-		end
+	local vec = ray:query() and vector():mad(pos,dir,ray:get_distance())
+	if (self:ValidatePosition(vec)) then
+		return vec
 	end
 end
 
-function UIDeploy:GetAttachmentRotation(pos)
-	if not (pos) then
+function UIDeploy:GetDeployRotation()
+	if not (self.pos) then
 		return
 	end
-	local src = vector():set(pos)
-	cam_xform():transform_tiny(src)
+	local src = vector():set(self.pos)
 	local tmp = vector():set(src):add(vector():set(0,0.5,0))
 	local dir = vector():setHP(device().cam_dir:getH() + math.rad(self.rotation),0):normalize()
 	local ray = ray_pick(tmp,dir,2,3,db.actor)
@@ -396,7 +392,18 @@ function UIDeploy:GetAttachmentRotation(pos)
 	return vector():sub(dst,src):normalize()
 end
 
-function UIDeploy:CheckDeployPosition()
+function UIDeploy:ValidatePosition(vec)
+	if not (vec) then
+		return false
+	end
+	local rds = device().cam_pos:distance_to_xz_sqr(vec)
+	if (rds < math.pow(self.radius_min,2)) or (rds > math.pow(self.radius_max,2)) then
+		return false
+	end
+	local tmp = vec.y - device().cam_pos.y
+	if (tmp < self.height_min) or (tmp > self.height_max) then
+		return false
+	end
 	return true
 end
 
@@ -412,8 +419,8 @@ function UIDeploy:Cancel()
 end
 
 function UIDeploy:Close()
-	if (db.actor:get_attachment(self.atm_name)) then
-		db.actor:remove_attachment(self.atm_name)
+	if (level.get_attachment(self.atm_name)) then
+		level.remove_attachment(self.atm_name)
 	end
 	hud_deploy_remove()
 end
