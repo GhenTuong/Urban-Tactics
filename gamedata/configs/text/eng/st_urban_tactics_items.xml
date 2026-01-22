@@ -81,6 +81,17 @@
 		%c[d_purple] • %c[ui_gray_2] Cumbersome. Reduce throwing distance.</text>
 	</string>
 	
+	<string id="st_grenade_flame">
+		<text>Incendiary bottle</text>
+	</string>
+	<string id="st_grenade_flame_descr">
+		<text>An incendiary bottle is an improvised hand-thrown incendiary weapon. When thrown, the frangible bottle shatters on impact. This ignites the flammable substances contained in the bottle and spreads flames as the fuel burns.\n \n
+		%c[d_purple] • %c[ui_gray_2] Flame damage: %c[ui_gray_1]low\n
+		%c[d_purple] • %c[ui_gray_2] Flame radius: %c[ui_gray_1]6 m\n
+		%c[d_purple] • %c[ui_gray_2] Burn duration: %c[ui_gray_1]60 seconds\n
+		%c[d_purple] • %c[ui_gray_2] Not explode when hitting water surface.</text>
+	</string>
+	
 <!------------------------------------------------------------------------------------------------------
 	IEDs
 ------------------------------------------------------------------------------------------------------->

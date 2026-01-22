@@ -1,0 +1,373 @@
+--[[----------------------------------------------------------------------------------------------------
+	GhenTuong
+	Discord: GhenTuong#1278
+	Twitter: https://twitter.com/GhenTuong
+------------------------------------------------------------------------------------------------------]]
+
+local MATERIAL_NO_EXPLODE = {
+	["material\\bush"] = true,
+	["material\\water"] = true,
+}
+
+local VECTOR_INVERT_Y = vector():set(VEC_Y):invert()
+
+-- A little offset to make sure flame spites are spawned above ground.
+local FLAME_OFFSET = vector():set(0.0,0.1,0.0)
+
+--[[----------------------------------------------------------------------------------------------------
+	Main
+------------------------------------------------------------------------------------------------------]]
+flame_objects = {}
+
+function add_binded_object(obj)
+	flame_objects[obj:id()] = obj
+end
+
+function del_binded_object(obj)
+	flame_objects[obj:id()] = nil
+end
+
+function on_explode(obj,prs)
+	if (prs.flag and not MATERIAL_NO_EXPLODE[prs.material]) then
+		MGR:FlameCreate(obj,vec_add(prs.position,FLAME_OFFSET))
+		return
+	end
+	-- Failed to explode. Respawn the grenade.
+	local sec = obj:section()
+	local pos = vec_add(prs.position,FLAME_OFFSET)
+	local vid = obj:level_vertex_id()
+	local gid = obj:game_vertex_id()
+	local ang = obj:angle()
+	local vec = vector():set(prs.velocity.x,prs.velocity.y,prs.velocity.z)
+	local itm = alife_create(sec,pos,vid,gid)
+	itm.angle = vector():set(ang.y,ang.x,ang.z)
+	CreateTimeEvent(itm.id,"grenade_flame_on_explode",0,on_item_drop_time_event,itm.id,pos)
+end
+
+function on_item_drop_time_event(oid,pos)
+	local obj = URB_TAC:ObjectById(oid)
+	if (obj) then
+		SendScriptCallback("actor_on_item_drop",obj)
+		obj:force_set_position(pos)
+		URB_TAC:DEBUG("[%s] drop success.",obj:name())
+		return true
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Manager
+------------------------------------------------------------------------------------------------------]]
+MGR = nil
+
+class "CFlameManager"
+function CFlameManager:__init()
+	self.FLAME_STORAGE = {}
+	
+	self.timer = 0
+	
+	RegisterScriptCallback("save_state",self)
+	RegisterScriptCallback("load_state",self)
+	RegisterScriptCallback("on_level_changing",self)
+	RegisterScriptCallback("actor_on_update",self)
+	RegisterScriptCallback("actor_on_first_update",self)
+end
+
+function CFlameManager:save_state(m_data)
+	m_data.GT_FLAME_STORAGE = self.FLAME_STORAGE
+end
+
+function CFlameManager:load_state(m_data)
+	self.FLAME_STORAGE = m_data.GT_FLAME_STORAGE or {}
+end
+
+function CFlameManager:on_level_changing()
+	for oid,var in pairs(self.FLAME_STORAGE) do
+		var.release = true
+	end
+end
+
+function CFlameManager:actor_on_first_update()
+	for oid,var in pairs(self.FLAME_STORAGE) do
+		if (var.release) then
+			local se = alife_object(oid)
+			if (se) then
+				URB_TAC:DEBUG("[%s] Release due to changing level.",se:name())
+				alife_release(se)
+			end
+		end
+	end
+end
+
+function CFlameManager:actor_on_update()
+	if (self.timer and self.timer > time_global()) then
+		return
+	end
+	self.timer = time_global() + 100
+	for _,oid in ipairs(db.OnlineStalkers) do
+		local npc = URB_TAC:ObjectById(oid)
+		local who = npc and self:InFlame(npc)
+		if (who) then
+			self:ApplyBurnDamage(npc,who)
+		end
+	end
+end
+
+function CFlameManager:InFlame(npc)
+	-- Try to get an owner who is still alive. Otherwise, let the npc hits himself.
+	local pos = npc:position()
+	local who = nil
+	for oid,obj in pairs(flame_objects) do
+		local var = self:FlameObject(oid)
+		local vec = obj:position()
+		if (var) and (vec.y < pos.y + 0.2) and (vec.y > pos.y - 1.5) then
+			if (pos:distance_to_xz_sqr(vec) < math.pow(3,2)) then
+				local ene = var.owner and URB_TAC:ObjectById(var.owner)
+				if (who == nil) or (who:id() == npc:id()) then
+					who = ene and IsStalker(ene) and ene:alive() and ene or npc
+					if (who:id() ~= npc:id()) then
+						return who
+					end
+				end
+			end
+		end
+	end
+	return who
+end
+
+function CFlameManager:ApplyBurnDamage(npc,who)
+	local h = hit()
+	h.type		= hit.light_burn
+	h.power		= 0.01
+	h.impulse	= 0
+	h.direction	= vector():set(VEC_Y)
+	h.draftsman	= who
+	h:bone("bip01_spine")
+	npc:hit(h)
+end
+
+function CFlameManager:FlameCreate(obj,pos)
+	local vid = obj:level_vertex_id()
+	local gid = obj:game_vertex_id()
+	local se = alife_create("flame_object_base",pos,vid,gid)
+	local var = {}
+	var.owner = obj:cast_Explosive():Initiator()
+	var.timer = 60 * 1000
+	var.delay = 60 * 1000
+	var.point = self:VectorToTable(pos)
+	self.FLAME_STORAGE[se.id] = var
+end
+
+function CFlameManager:FlameRemove(oid)
+	self.FLAME_STORAGE[oid] = nil
+end
+
+function CFlameManager:FlameObject(oid)
+	return self.FLAME_STORAGE[oid]
+end
+
+function CFlameManager:VectorToTable(v)
+	local x = tonumber(v.x)
+	local y = tonumber(v.y)
+	local z = tonumber(v.z)
+	if (x and y and z) then
+		return {x = vec.x,y = vec.y,z = vec.z}
+	end
+	callstack()
+	URB_TAC:DEBUG("Wrong parameters: %s %s %s",x,y,z)
+	assert(nil,URB_TAC:Name())
+end
+
+function CFlameManager:TableToVector(v)
+	local x = tonumber(v.x)
+	local y = tonumber(v.y)
+	local z = tonumber(v.z)
+	if (x and y and z) then
+		return vector():set(x,y,z)
+	end
+	callstack()
+	URB_TAC:DEBUG("Wrong parameters: %s %s %s",x,y,z)
+	assert(nil,URB_TAC:Name())
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Binder
+------------------------------------------------------------------------------------------------------]]
+function init(obj)
+	obj:bind_object(CFlameBinder(obj))
+end
+
+class "CFlameBinder" (object_binder)
+function CFlameBinder:__init(obj) super(obj)
+	db.storage[self.object:id()] = {}
+	self.oid = self.object:id()
+	
+	self.ptc_blast_name = [[explosions\grenade_incendiary_blast]]
+	self.ptc_flame_name = [[explosions\grenade_incendiary_flame]]
+	self.ptc_blast = particles_object(self.ptc_blast_name)
+	self.ptc_flame = particles_object(self.ptc_flame_name)
+	assert(self.ptc_blast,URB_TAC:Name() .. " Failed to load:" .. self.ptc_blast_name)
+	assert(self.ptc_flame,URB_TAC:Name() .. " Failed to load:" .. self.ptc_flame_name)
+	
+	self.snd_flame_name = [[anomaly\fire2]]
+	self.snd_flame = sound_object(self.snd_flame_name)
+	assert(self.snd_flame,URB_TAC:Name() .. " Failed to load:" .. self.snd_flame_name)
+	
+	self.field = self:LoadField()
+	
+	local var = MGR:FlameObject(self.oid)
+	self.point = var and var.point and MGR:TableToVector(var.point)
+	
+	self.fc_delta = nil
+	self.fc_timer = nil
+	self.fc_delay = 200
+	self.object:set_fastcall(self.update,self)
+end
+
+function CFlameBinder:reload(section)
+	object_binder.reload(self,section)
+end
+
+function CFlameBinder:reinit()
+	object_binder.reinit(self)
+	db.storage[self.object:id()] = db.storage[self.object:id()] or {}
+	self.st = db.storage[self.object:id()]
+end
+
+function CFlameBinder:update(delta)
+	object_binder.update(self,delta)
+	if (self.fc_timer and (self.fc_timer > time_global())) then
+		return
+	end
+	self.fc_delta = self.fc_timer and (time_global() - self.fc_timer + self.fc_delay) or 0
+	self.fc_timer = time_global() + self.fc_delay
+	
+	local var = MGR:FlameObject(self.oid)
+	if not (var and var.timer) then
+		return self:Release()
+	end
+	
+	if (self.point) then
+		if (self.point:distance_to_sqr(self.object:position()) > math.pow(0.01,1)) then
+			self.object:force_set_position(self.point)
+		end
+	end
+	
+	var.timer = math.max(0,var.timer - self.fc_delta)
+	if (var.timer == 0) then
+		return self:Release()
+	end
+	
+	if (self.ptc_blast) then
+		if (var.timer == var.delay) then
+			self.ptc_blast:move_to(self.object:position(),VEC_ZERO)
+			self.ptc_blast:play(false)
+		end
+	end
+	
+	if (self.ptc_flame) then
+		if (var.timer < 2000) then
+			if (self.ptc_flame:playing() == true) then
+				self.ptc_flame:stop_deffered()
+			end
+		else
+			if (self.ptc_flame:playing() ~= true) then
+				self.ptc_flame:play_at_pos(self.object:position(),false)
+			end
+			if (self.ptc_flame:playing() == true) then
+				self.ptc_flame:move_to(self.object:position(),VEC_ZERO)
+			end
+		end
+	end
+	
+	self.snd_flame.volume = math.min(var.timer / 2000,1)
+	if (self.snd_flame:playing()) then
+		self.snd_flame:set_position(self.object:position())
+	else
+		self.snd_flame:play_at_pos(self.object,self.object:position(),0,(sound_object.s3d))
+	end
+end
+
+function CFlameBinder:LoadField()
+	local pos = self.object:position()
+	local tmp = {}
+	local r = math.random() * math.pi * 2
+	local d = math.random() * 3
+	local p = vector():setHP(r,0):normalize():mul(d)
+	
+	return tmp
+end
+
+function CFlameBinder:LoadFieldPoint(r,d)
+	
+end
+
+function CFlameBinder:TrajectoryPosition(p,v,t)
+	--[[
+	x = (v.x * t)
+	y = (v.y * t) - (g * (t^2) / 2)
+	In 3D, x ~ xz, y ~ y
+	--]]
+	local motion = vector():set(v.x,0,v.z):mul(t)
+	motion.y = (v.y * t) - (level.physics_world():gravity() * math.pow(t,2) / 2)
+	return vector():set(p):add(motion)
+end
+
+function CFlameBinder:Release()
+	if (self.ptc_blast) then
+		self.ptc_blast:stop()
+		self.ptc_blast = nil
+	end
+	if (self.ptc_flame) then
+		self.ptc_flame:stop()
+		self.ptc_flame = nil
+	end
+	if (self.snd_flame) then
+		self.snd_flame:stop()
+		self.snd_flame = nil
+	end
+	MGR:FlameRemove(self.object:id())
+	alife_release(alife_object(self.object:id()))
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Schemes
+------------------------------------------------------------------------------------------------------]]
+function CFlameBinder:net_spawn(se_abstract)
+	if not (object_binder.net_spawn(self,se_abstract)) then
+		return false
+	end
+	db.add_obj(self.object)
+	add_binded_object(self.object)
+	return true
+end
+
+function CFlameBinder:net_destroy()
+	db.del_obj(self.object)
+	del_binded_object(self.object)
+	object_binder.net_destroy(self)
+end
+
+function CFlameBinder:net_save_relevant()
+	return true
+end
+
+function CFlameBinder:save(packet)
+	object_binder.save(self,packet)
+	set_save_marker(packet,"save",false,"physics_binder")
+	xr_logic.save_obj(self.object,packet)
+	set_save_marker(packet,"save",true,"physics_binder")
+end
+
+function CFlameBinder:load(packet)
+	object_binder.load(self,packet)
+	set_save_marker(packet,"load",false,"physics_binder")
+	xr_logic.load_obj(self.object,packet)
+	set_save_marker(packet,"load",true,"physics_binder")
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Registers
+------------------------------------------------------------------------------------------------------]]
+function on_game_start()
+	MGR = CFlameManager()
+end

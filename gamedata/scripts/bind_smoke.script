@@ -4,18 +4,6 @@
 	Twitter: https://twitter.com/GhenTuong
 --]]
 
-function DEBUG(str,...)
-	local func = debug.getinfo(2,"S").source
-	local line = debug.getinfo(2,"l").currentline
-	func = string.sub(func,#func - string.find(string.reverse(func),"\\") + 2,#func)
-	local p = {...}
-	if (p and (#p ~= 0)) then
-		printf(string.format("[GhenTuong] %s:%s | %s",tostring(func),tostring(line),str),...)
-	else
-		printf(string.format("[GhenTuong] %s:%s | ",tostring(func),tostring(line)) .. "%s",str)
-	end
-end
-
 VISIBILITY_REDUCE_COEFFICIENT = 0.1
 
 --[[----------------------------------------------------------------------------------------------------
@@ -156,7 +144,7 @@ function get_visible_value(npc,who,time_delta,time_quant,luminocity,velocity_fac
 	for _,obj in pairs(smoke_objects) do
 		if (is_smoke_conceal_target(obj,npc,who)) then
 			res = -VISIBILITY_REDUCE_COEFFICIENT
-			--DEBUG("Smoke [%s] -> [%s] X [%s]",npc:name(),who:name(),obj:name())
+			--URB_TAC:DEBUG("Smoke [%s] -> [%s] X [%s]",npc:name(),who:name(),obj:name())
 			break
 		end
 	end
@@ -185,7 +173,7 @@ function overrides()
 		for k=0,n-1 do
 			local r,i,v = ini:r_line_ex(s,k)
 			if (i) then
-				DEBUG("%s %s",s,i)
+				URB_TAC:DEBUG("%s %s",s,i)
 			end
 		end
 	end
@@ -266,8 +254,8 @@ function CSmokeBinder:update(delta)
 		end
 	end
 	
-	--DEBUG("[%s]:Update() %s",self.object:name(),SMOKE_STORAGE[self.oid])
-	--DEBUG("[%s]:Update() distance to actor %s",self.object:name(),self.object:position():distance_to(db.actor:position()))
+	--URB_TAC:DEBUG("[%s]:Update() %s",self.object:name(),SMOKE_STORAGE[self.oid])
+	--URB_TAC:DEBUG("[%s]:Update() distance to actor %s",self.object:name(),self.object:position():distance_to(db.actor:position()))
 	self:UpdateSound()
 	self:UpdateParticles()
 end
@@ -277,7 +265,7 @@ function CSmokeBinder:UpdateSound()
 		return
 	end
 	
-	--DEBUG("[%s] play sound.",self.object:name())
+	--URB_TAC:DEBUG("[%s] play sound.",self.object:name())
 	self.snd.volume = math.min(SMOKE_STORAGE[self.oid] / self.end_effect,1)
 	if (self.snd:playing()) then
 		self.snd:set_position(self.object:position())
@@ -291,7 +279,7 @@ function CSmokeBinder:UpdateParticles()
 		return
 	end
 	
-	--DEBUG("[%s] play particles.",self.object:name())
+	--URB_TAC:DEBUG("[%s] play particles.",self.object:name())
 	if (SMOKE_STORAGE[self.oid] < self.end_effect) then
 		if (self.ptc:playing()) then
 			self.ptc:stop_deffered()
@@ -305,7 +293,7 @@ function CSmokeBinder:UpdateParticles()
 end
 
 function CSmokeBinder:Destroy()
-	--DEBUG("[%s] SelfDestroy()",self.object:name())
+	--URB_TAC:DEBUG("[%s] SelfDestroy()",self.object:name())
 	if (self.snd) then
 		self.snd:stop()
 		self.snd = nil
