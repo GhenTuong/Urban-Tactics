@@ -90,9 +90,11 @@ kill_msg_y						= 232
 kill_msg_width					= 13
 kill_msg_height					= 23
 
-on_grenade_explode				= grenade_flame.on_explode
 explode_on_contact				= true
+on_grenade_explode				= grenade_flame.on_explode
+on_explode_spawn				= flame_object_grenade_flame
 explode_effector_sect_name		= $no_effector
+flame_radius					= 4
 
 [grenade_flame_hud]:hud_base
 item_visual						= anomaly_weapons\wpn_grenades\wpn_explosive_charge_hud.ogf
@@ -158,11 +160,14 @@ snd_checkout					= weapons\explo\smoke\rgd2_throw_ignite_01,1.0,0.4
 ;====================================================================================================
 ;	Script object
 ;====================================================================================================
-[flame_object_base]
+[flame_object_grenade_flame]
 GroupControlSection				= spawn_group
 class							= O_DSTR_S
 remove_time						= 0
 script_binding					= grenade_flame.init
 visual							= dynamics\weapons\wpn_grenades\flame_dummy.ogf
 fixed_bones						= link
-;ignore_collision				= obj,npc
+
+ptc_blast						= explosions\grenade_incendiary_blast
+ptc_flame						= explosions\grenade_incendiary_flame
+snd_flame						= anomaly\fire2

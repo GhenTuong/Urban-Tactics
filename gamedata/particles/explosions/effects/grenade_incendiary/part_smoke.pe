@@ -1,6 +1,6 @@
 [_effect]
         action_count                     = 8
-        flags                            = 19457
+        flags                            = 3073
         max_particles                    = 16
         version                          = 1
  
@@ -115,7 +115,4 @@
 [sprite]
         shader                           = particles\blend
         texture                          = fx\grenade_incendiary\fireball_07
- 
-[timelimit]
-        value                            = 1000.000000
  

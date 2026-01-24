@@ -1,6 +1,6 @@
 [_effect]
         action_count                     = 7
-        flags                            = 8444929
+        flags                            = 8428545
         max_particles                    = 5
         version                          = 1
  
@@ -113,7 +113,4 @@
 [sprite]
         shader                           = particles\alpha_add
         texture                          = fx\grenade_incendiary\flamesheetlong1_red_cut
- 
-[timelimit]
-        value                            = 1000.000000
  
