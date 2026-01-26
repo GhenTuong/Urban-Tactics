@@ -15,10 +15,20 @@ local FLAME_OFFSET = vector():set(0.0,0.2,0.0)
 local GRAVITY_HALF = 4.9
 
 local FLAME_AMOUNT = 120
+local FLAME_DAMAGE_HEIGHT = 1.0 -- The height of the flame.
+local FLAME_DAMAGE_RADIUS = math.pow(0.7,2)
 
 -- Limit the height to generate flame. Too low and too high to where the grenade hits.
-local FLAME_HEIGHT_MAX = 0.5
-local FLAME_HEIGHT_MIN = -50
+local FLAME_RENDER_HEIGHT_MAX = 0.5
+local FLAME_RENDER_HEIGHT_MIN = -50
+
+function angle_normalize(ang,nor)
+	if not (nor and nor > 0) then
+		URB_TAC:DEBUG("Wrong parameters %s",nor)
+		assert(nil,URB_TAC:Name())
+	end
+	return (ang + nor) % (2 * nor) - nor
+end
 
 --[[----------------------------------------------------------------------------------------------------
 	Main
@@ -34,8 +44,17 @@ function del_binded_object(obj)
 end
 
 function on_explode(obj,prs)
+	URB_TAC:DEBUG("[%s] explode:%s",obj:name(),prs.flag)
+	URB_TAC:DEBUG("[%s] pos:%s",obj:name(),prs.position)
+	URB_TAC:DEBUG("[%s] vel:%s",obj:name(),prs.velocity)
+	URB_TAC:DEBUG("[%s] nor:%s",obj:name(),prs.normal)
+	URB_TAC:DEBUG("[%s] mtl:%s",obj:name(),prs.material)
+--[[
+flat 0 nor:[0:1:0]
+wall 0 nor:[0:0:-1]
+--]]
 	if (prs.flag and not MATERIAL_NO_EXPLODE[prs.material]) then
-		MGR:FlameCreate(obj,prs.position,prs.velocity)
+		MGR:FlameCreate(obj,prs.position,prs.velocity,prs.normal)
 		return
 	end
 	-- Failed to explode. Respawn the grenade.
@@ -103,6 +122,12 @@ function CFlameManager:actor_on_update()
 		return
 	end
 	self.timer = time_global() + 100
+	do
+		local who = self:InFlame(db.actor)
+		if (who) then
+			self:ApplyBurnDamage(db.actor,who)
+		end
+	end
 	for _,oid in ipairs(db.OnlineStalkers) do
 		local npc = URB_TAC:ObjectById(oid)
 		local who = npc and self:InFlame(npc)
@@ -115,18 +140,17 @@ end
 function CFlameManager:InFlame(npc)
 	-- Try to get an owner who is still alive. Otherwise, let the npc hits himself.
 	local pos = npc:position()
+	local top = vector():set(pos.x,pos.y + (npc:center().y - pos.y) * 2,pos.z)
 	local who = nil
 	for oid,obj in pairs(flame_objects) do
-		local var = self:FlameObject(oid)
-		local vec = obj:position()
-		if (var) and (vec.y < pos.y + 0.2) and (vec.y > pos.y - 1.5) then
-			if (pos:distance_to_xz_sqr(vec) < math.pow(3,2)) then
-				local ene = var.owner and URB_TAC:ObjectById(var.owner)
-				if (who == nil) or (who:id() == npc:id()) then
-					who = ene and IsStalker(ene) and ene:alive() and ene or npc
-					if (who:id() ~= npc:id()) then
-						return who
-					end
+		local mgr = obj:binded_object()
+		if (mgr and mgr:InFlame(pos,top)) then
+			local var = self:FlameObject(oid)
+			local ene = var and var.owner and URB_TAC:ObjectById(var.owner)
+			if (who == nil) or (who:id() == npc:id()) then
+				who = ene and IsStalker(ene) and ene:alive() and ene or npc
+				if (who:id() ~= npc:id()) then
+					return who
 				end
 			end
 		end
@@ -145,24 +169,24 @@ function CFlameManager:ApplyBurnDamage(npc,who)
 	npc:hit(h)
 end
 
-function CFlameManager:FlameCreate(obj,pos,vel)
+function CFlameManager:FlameCreate(obj,pos,vel,nor)
 	local sec = SYS_GetParam(0,obj:section(),"on_explode_spawn")
 	local rds = tonumber(SYS_GetParam(0,obj:section(),"flame_radius"))
 	if not (sec and ini_sys:section_exist(sec) and rds) then
-		URB_TAC:DEBUG("%s: obj:%s sec:%s rds:%s",URB_TAC:name(),obj:section(),sec,rds)
+		URB_TAC:DEBUG("[%s] sec:%s rds:%s",obj:section(),sec,rds)
 		assert(nil,URB_TAC:Name())
 	end
 	local vid = obj:level_vertex_id()
 	local gid = obj:game_vertex_id()
 	local se = alife_create(sec,pos,vid,gid)
-	
+	--URB_TAC:DEBUG("[%s] pos:%s vel:%s",obj:section(),pos,vel)
+	--URB_TAC:DEBUG("[%s] sec:%s obj:%s",obj:section(),sec,obj:position())
 	local dir = vector():set(vel):normalize():invert()
-	local vec = vector():mad(pos,dir,0.1)
 	local var = {}
 	var.owner = obj:cast_Explosive():Initiator()
 	var.timer = 60 * 1000
 	var.delay = 60 * 1000
-	var.flame = self:GenerateFlamePosition(vec,vel,rds,lim)
+	var.flame = self:GenerateFlamePosition(pos,vel,nor,rds,lim)
 	self.FLAME_STORAGE[se.id] = var
 end
 
@@ -195,16 +219,33 @@ function CFlameManager:TableToVector(v)
 	URB_TAC:DEBUG("Wrong parameters: %s,%s,%s",x,y,z)
 	assert(nil,URB_TAC:Name())
 end
+--[[
+function CFlameManager:ContactPosition(pos,vel)
+	-- Ray cast backward 1 meters to get the contact position.
+	if (vel:magnitude() < 0.01) then
+		-- Exploding on contact can't have 0 velocity but still check just in case.
+		return vector():set(pos)
+	end
+	local dir = vector():normalize(vel)
+	local inv = vector():invert(dir)
+	for k=1,20 do
+		local vec = vector():mad(pos,inv,k * 0.05)
+		local ray = ray_pick(vec,dir,0.1,2,nil)
+		if (ray:query()) then
+			return vector():mad(vec,dir,ray:get_distance())
+		end
+	end
+end
+--]]
 
-function CFlameManager:GenerateFlamePosition(pos,vel,rds,lim)
-	--[[
-	
-	--]]
+function CFlameManager:GenerateFlamePosition(pos,vel,nor,rds,lim)
+	local xfm = self:ThrowXfm(pos,nor)
 	local tmp = {}
 	for k=1,FLAME_AMOUNT do
 		local r = math.random() * math.pi * 2
 		local d = math.random() * rds
 		local dir = self:ThrowVelocity(r,d,1)
+		xfm:transform_dir(dir)
 		local vec = self:ThrowCast(pos,dir)
 		if (vec and (vec:distance_to_sqr(pos) > 0.01)) then
 			tmp[#tmp+1] = self:VectorToTable(vec)
@@ -213,25 +254,33 @@ function CFlameManager:GenerateFlamePosition(pos,vel,rds,lim)
 	return tmp
 end
 
+function CFlameManager:ThrowXfm(pos,nor)
+	local h = nor:getH()
+	local p = angle_normalize(nor:getP() - (math.pi / 2),(math.pi / 2))
+	return matrix():setHPB(h,p,0)
+end
+
 function CFlameManager:ThrowCast(pos,vel)
 	local src = vector():set(pos)
 	local dst = vector():set(pos)
 	for k=1,100 do
 		src:set(dst)
 		dst = self:TrajectoryPosition(pos,vel,k * 0.1)
-		if (dst.y < pos.y + FLAME_HEIGHT_MIN) then
+		if (dst.y < pos.y + FLAME_RENDER_HEIGHT_MIN) then
 			-- Too low.
 			break
 		end
+		---[[
 		if (dst.y > pos.y + 0.1) then
 			-- Higher than where the grenade lands. Must have a clear LoS.
 			local dir = vec_sub(dst,pos)
 			local num = dir:magnitude()
-			local ray = ray_pick(src,dir,num,2,nil)
+			local ray = ray_pick(pos,dir,num,2,nil)
 			if (ray:query()) then
 				break
 			end
 		end
+		--]]
 		local dir = vec_sub(dst,src)
 		local num = dir:magnitude()
 		if (num > 0) then
@@ -244,7 +293,7 @@ function CFlameManager:ThrowCast(pos,vel)
 					break
 				end
 				local vec = vector():mad(src,dir:normalize(),tmp)
-				if (vec.y > pos.y + FLAME_HEIGHT_MAX) then
+				if (vec.y > pos.y + FLAME_RENDER_HEIGHT_MAX) then
 					-- Is going down. But too high than where the grenade lands. Skip.
 					break
 				end
@@ -388,7 +437,7 @@ function CFlameBinder:update(delta)
 		end
 	end
 	
-	local status = (var.timer > 2000) and (var.delay - var.timer) > 500
+	local status = (var.timer > 10000) and (var.delay - var.timer) > 500
 	for idx=1,#self.flame do
 		self.flame[idx]:Update(status)
 	end
@@ -419,6 +468,27 @@ function CFlameBinder:Release()
 	
 	MGR:FlameRemove(self.object:id())
 	alife_release(alife_object(self.object:id()))
+end
+
+function CFlameBinder:InFlame(pos,hed)
+	for idx=1,#self.flame do
+		if (self:InFlameValidatePosition(self.flame[idx].pos,pos,hed)) then
+			return true
+		end
+	end
+	return false
+end
+
+function CFlameBinder:InFlameValidatePosition(vec,pos,hed)
+	-- One of feet or head must be within flame height.
+	if (vec.y + FLAME_DAMAGE_HEIGHT < pos.y) and (vec.y > hed.y) then
+		return false
+	end
+	-- Must be within flame radius.
+	if (vec:distance_to_xz_sqr(pos) > FLAME_DAMAGE_RADIUS) then
+		return false
+	end
+	return true
 end
 
 --[[----------------------------------------------------------------------------------------------------
