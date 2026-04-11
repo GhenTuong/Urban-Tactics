@@ -1,3 +1,185 @@
+;----------------------------------------------------------------------------------------------------
+;	Grenades
+;----------------------------------------------------------------------------------------------------
+![grenade_f1]
+frags						= 0
+frags_r						= 0
+explode_effector_sect_name	= $no_effector
+snd_explode					= urb_tac_grenade_snd_frag
+
+![grenade_rgd5]
+frags						= 0
+frags_r						= 0
+explode_effector_sect_name	= $no_effector
+snd_explode					= urb_tac_grenade_snd_frag
+
+[urb_tac_grenade_snd_frag]
+snd_1_layer		= urb_tac\weapons\grenade\grenade_imp_close_01
+snd_1_layer1	= urb_tac\weapons\grenade\grenade_imp_close_02
+snd_1_layer2	= urb_tac\weapons\grenade\grenade_imp_close_03
+snd_1_layer3	= urb_tac\weapons\grenade\grenade_imp_close_04
+snd_1_layer4	= urb_tac\weapons\grenade\grenade_imp_close_05
+
+snd_2_layer		= weapons\explo\dirt1
+snd_2_layer1	= weapons\explo\dirt2
+snd_2_layer2	= weapons\explo\dirt3
+
+snd_3_layer		= urb_tac\weapons\grenade\grenade_imp_far_01
+snd_3_layer1	= urb_tac\weapons\grenade\grenade_imp_far_02
+snd_3_layer2	= urb_tac\weapons\grenade\grenade_imp_far_03
+snd_3_layer3	= urb_tac\weapons\grenade\grenade_imp_far_04
+snd_3_layer4	= urb_tac\weapons\grenade\grenade_imp_far_05
+
+snd_4_layer		= urb_tac\weapons\grenade\echo_01
+snd_4_layer1	= urb_tac\weapons\grenade\echo_02
+snd_4_layer2	= urb_tac\weapons\grenade\echo_03
+snd_4_layer3	= urb_tac\weapons\grenade\echo_04
+snd_4_layer4	= urb_tac\weapons\grenade\echo_05
+
+;----------------------------------------------------------------------------------------------------
+;	Drone
+;----------------------------------------------------------------------------------------------------
+[m_drone_base]
+GroupControlSection			= spawn_group
+cform						= skeleton
+class						= SCRPTCAR
+kind						= v_drone
+type						= fly
+use_action_hint				= drone_use_hint
+script_binding				= drone_bind.init
+on_before_hit				= drone_bind.on_before_hit
+on_before_use				= drone_bind.on_before_use
+
+[m_drone_item]:tch_quest
+script_binding				= bind_item.bind
+use1_functor				= drone_item.drone_deploy_desc
+use1_action_functor			= drone_item.drone_deploy_func
+use2_functor				= drone_item.drone_detach_desc
+use2_action_functor			= drone_item.drone_detach_func
+
+;----------------------------------------------------------------------------------------------------
+[handheld_drone]:m_drone_item
+visual						= dynamics\vehicles\drone\drone.ogf
+inv_name					= handheld_drone_name
+inv_name_short				= handheld_drone_name
+description					= handheld_drone_desc
+icons_texture				= ui\actor_items\ui_icon_drone
+inv_grid_width				= 3
+inv_grid_height				= 2
+inv_grid_x					= 0
+inv_grid_y					= 0
+inv_weight					= 5.0
+attach_angle_offset			= 0.0,0.0,0.0
+attach_position_offset		= 0.0,0.0,0.0
+attach_bone_name			= bip01_l_hand
+can_trade					= true
+cost						= 10000
+tier						= 3
+
+[handheld_drone_veh]:handheld_drone,m_drone_base
+control_neutral				= 1.0
+control_ele_max				= 3.0
+control_yaw_max				= 3.0
+control_pit_max				= 2.0
+control_rol_max				= 2.0
+fly_weight_min				= 20
+
+attachment_bone				= attach_bone
+attachment_data				= ied_remote_exp,ied_remote_rpg
+map_spot					= drone_map_spot
+
+;----------------------------------------------------------------------------------------------------
+;	Camera
+;----------------------------------------------------------------------------------------------------
+[drone_cam_first]
+lim_pitch					= -30,85
+lim_yaw						= -0.01,0.01
+lim_deg						= true
+rot_speed					= 3.14,1.0,0
+
+[drone_cam_chase]
+lim_pitch					= -180,180
+lim_yaw						= 0,0
+lim_deg						= true
+lim_zoom					= 1,2
+rot_speed					= 3.14,1.0,0
+
+[drone_cam_free]
+lim_pitch					= -180,180
+lim_yaw						= 0,0
+lim_deg						= true
+lim_zoom					= 1,2
+rot_speed					= 3.14,1.0,0
+
+;----------------------------------------------------------------------------------------------------
+;	Ied
+;----------------------------------------------------------------------------------------------------
+[m_ied_remote_blow_base]:identity_immunities
+kind						= e_ied
+class						= S_EXPLO
+script_binding				= ied_gameplay.init
+cost						= 0
+can_take					= true
+immunities_sect				= planted_mine_immunities
+use_action_hint				= ied_remote_use_hint
+
+[m_ied_remote_item_base]:identity_immunities
+kind						= i_tool
+class						= II_ANTIR
+cform						= skeleton
+inv_vol						= 1
+attach_angle_offset			= 0.0,0.0,0.0
+attach_position_offset		= 0.0,0.0,0.0
+attach_bone_name			= bip01_l_hand
+auto_attach					= false
+eat_health					= 0
+eat_satiety					= 0
+eat_power					= 0
+eat_radiation				= 0
+eat_alcohol					= 0
+eat_portions_num			= 1
+wounds_heal_perc			= 0
+
+use4_functor                = ied_gameplay.remote_desc
+use4_action_functor         = ied_gameplay.remote_func
+
+;----------------------------------------------------------------------------------------------------
+[ied_remote_rpg]:rpg_new_blow,m_ied_remote_item_base
+visual						= dynamics\weapons\mine\ied_remote_rpg.ogf
+inv_name					= ied_remote_rpg_name
+inv_name_short				= ied_remote_rpg_name
+description					= ied_remote_rpg_desc
+icons_texture				= ui\actor_items\ui_icon_ied_remote
+inv_grid_width				= 1
+inv_grid_height				= 2
+inv_grid_x					= 2
+inv_grid_y					= 0
+inv_weight					= 0.8
+tier						= 4
+can_trade					= false
+
+[ied_remote_rpg_blow]:ied_remote_rpg,m_ied_remote_blow_base
+
+[ied_remote_exp]:grenade_explosive_charge,m_ied_remote_item_base
+visual						= dynamics\weapons\mine\ied_remote_exp.ogf
+inv_name					= ied_remote_exp_name
+inv_name_short				= ied_remote_exp_name
+description					= ied_remote_exp_desc
+icons_texture				= ui\actor_items\ui_icon_ied_remote
+inv_grid_width				= 1
+inv_grid_height				= 2
+inv_grid_x					= 3
+inv_grid_y					= 0
+cost						= 0
+inv_weight					= 1.4
+tier						= 4
+can_trade					= false
+
+[ied_remote_exp_blow]:ied_remote_exp,m_ied_remote_blow_base
+
+;----------------------------------------------------------------------------------------------------
+;	Launchers
+;----------------------------------------------------------------------------------------------------
 ![wpn_abakan]
 >grenade_class = ammo_flare_grenade_vgop
 

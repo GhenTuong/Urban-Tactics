@@ -19,7 +19,7 @@ function on_option_change()
 		ui_phone_nokia.KEY_CALL = ui_mcm.get("gt/urban_tactics/key_nokia_call") or ui_phone_nokia.KEY_CALL_DEF
 		ui_phone_nokia.KEY_RESET = ui_mcm.get("gt/urban_tactics/key_nokia_reset") or ui_phone_nokia.KEY_RESET_DEF
 		
-		drone_object.KEY_DETONATE = ui_mcm.get("gt/urban_tactics/key_drone_detonate") or drone_object.KEY_DETONATE_DEF
+		drone_bind.KEY_DETONATE = ui_mcm.get("gt/urban_tactics/key_drone_detonate") or drone_bind.KEY_DETONATE_DEF
 	end
 end
 
@@ -49,7 +49,7 @@ function on_mcm_load()
 			
 			{id = "drone_name",type = "title",text = "ui_mcm_gt_urban_tactics_drone_name"},
 			{id = "drone_desc",type = "desc",text = "ui_mcm_gt_urban_tactics_drone_desc"},
-			{id = "key_drone_detonate",type = "key_bind",val = 2,def = drone_object.KEY_DETONATE_DEF},
+			{id = "key_drone_detonate",type = "key_bind",val = 2,def = drone_bind.KEY_DETONATE_DEF},
 			{id = "drone_line",type = "line"},
 		}
 	}, "gt"

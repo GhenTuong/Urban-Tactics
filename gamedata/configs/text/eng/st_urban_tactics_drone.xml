@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="windows-1251"?>
 <string_table>
-	<string id="drone_use_hint">
-		<text>Use ($$ACTION_USE$$)</text>
+	<string id="drone_pda_info_attach">
+		<text>Attach: %s</text>
+	</string>
+	<string id="drone_pda_cmd_control">
+		<text>Control</text>
 	</string>
 	<string id="drone_interact_pickup">
 		<text>Take</text>
@@ -13,15 +16,19 @@
 		<text>Detach %s</text>
 	</string>
 	
+	<string id="drone_item_deploy">
+		<text>Deploy</text>
+	</string>
+	<string id="drone_item_detach">
+		<text>Detach %s</text>
+	</string>
+	
 	<string id="handheld_drone_name">
 		<text>Handheld Drone</text>
 	</string>
 	<string id="handheld_drone_desc">
 		<text>An unmanned aerial vehicle small enough to be man-portable. The drone is very maneuverable, can fit through tight spaces, and provides an edge view over a wide area. It is suitable for reconnaissance purposes.\n \n
 		%c[d_purple] • %c[ui_gray_2] Drones on the field are lost if owner leaves the current area.\n</text>
-	</string>
-	<string id="handheld_drone_deploy_desc">
-		<text>deploy</text>
 	</string>
 <!-------------------------------------------------------------------------------------------------------->
 	

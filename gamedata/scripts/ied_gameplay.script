@@ -20,7 +20,6 @@ _G.IED_MGR = nil
 class "CIedManager"
 function CIedManager:__init()
 	self.IED_STORAGE = {}
-	self.IED_ACT_OWN = {}
 	self.IED_INITIAL = {}
 	
 	self.cfg_item_to_blow = {}
@@ -43,46 +42,20 @@ function CIedManager:__init()
 	RegisterScriptCallback("actor_on_first_update",self)
 	RegisterScriptCallback("server_entity_on_unregister",self)
 	RegisterScriptCallback("actor_on_item_before_pickup",self)
-	
-	self.pickup_id = nil
 end
 
 function CIedManager:save_state(m_data)
 	m_data.GT_IED_STORAGE = self.IED_STORAGE
-	m_data.GT_IED_ACT_OWN = self.IED_ACT_OWN
 end
 
 function CIedManager:load_state(m_data)
 	self.IED_STORAGE = m_data.GT_IED_STORAGE or {}
-	self.IED_ACT_OWN = m_data.GT_IED_ACT_OWN or {}
-end
-
-function CIedManager:actor_on_first_update()
-	for idx=#self.IED_ACT_OWN,1,-1 do
-		local id = self.IED_ACT_OWN[idx]
-		local se = id and alife_object(id)
-		if (se) then
-			if not (simulation_objects.is_on_the_actor_level(se)) then
-				if (self:IsIed(se:section_name())) then
-					DEBUG("Release ied for not in actor level [%s]",se:name())
-					alife_release(se)
-				else
-					DEBUG("ERROR: object invalid [%s]",se:name())
-					self:ActorOwnDel(se.id)
-				end
-			end
-		else
-			DEBUG("ERROR: object does not exist")
-			self:ActorOwnDel(se.id)
-		end
-	end
 end
 
 function CIedManager:server_entity_on_unregister(se,flag)
 	if (flag == "se_explosive") and (self:IsIed(se:section_name())) then
 		DEBUG("server_entity_on_unregister(%s)",se:name())
 		self.IED_STORAGE[se.id] = nil
-		self:ActorOwnDel(se.id)
 	end
 end
 
@@ -102,71 +75,35 @@ function CIedManager:Storage()
 	return self.IED_STORAGE
 end
 
-function CIedManager:StorageById(id)
-	return id and self.IED_STORAGE[id]
+function CIedManager:StorageById(oid)
+	return oid and self.IED_STORAGE[oid]
 end
 
 function CIedManager:Initial()
 	return self.IED_INITIAL
 end
 
-function CIedManager:ActorOwn()
-	return self.IED_ACT_OWN
-end
-
-function CIedManager:ActorOwnSize()
-	return #self.IED_ACT_OWN
-end
-
-function CIedManager:ActorOwnGetIndex(id)
-	for i,v in ipairs(self.IED_ACT_OWN) do 
-		if (v == id) then 
-			return i
-		end
-	end
-end
-
-function CIedManager:ActorOwnAdd(id)
-	for i,v in ipairs(self.IED_ACT_OWN) do 
-		if (v == id) then 
-			return 
-		end
-	end
-	self.IED_ACT_OWN[#self.IED_ACT_OWN+1] = id
-end
-
-function CIedManager:ActorOwnDel(id)
-	for i,v in ipairs(self.IED_ACT_OWN) do 
-		if (v == id) then
-			table.remove(self.IED_ACT_OWN,i)
-			break
-		end
-	end
-end
-
-function CIedManager:Create(prs,actor_own)
+function CIedManager:Create(prs,owner_actor)
 	local sec = prs and prs.sec
 	local pos = prs and prs.pos
 	local vid = prs and prs.vid
 	local gid = prs and prs.gid
 	local ang = prs and prs.ang
 	local fix = prs and prs.fix
-	local num = prs and prs.num
 	if (sec and pos and vid and gid and ang and self:IsIed(sec)) then
 		local se = alife_create(sec,pos,vid,gid)
 		se.angle = vector():set(ang.y,ang.x,ang.z)
-		local k = {}
-		k.num = num
+		
+		local mem = self:StorageById(se.id)
 		if (fix) then
-			k.fix = fix
-			k.pos = {x = pos.x,y = pos.y,z = pos.z}
-			k.ang = {x = ang.x,y = ang.y,z = ang.z}
+			mem.fix = fix
+			mem.pos = {x = pos.x,y = pos.y,z = pos.z}
+			mem.ang = {x = ang.x,y = ang.y,z = ang.z}
 		else
 			self.IED_INITIAL[se.id] = {pos = pos,ang = ang}
 		end
-		self.IED_STORAGE[se.id] = k
-		if (actor_own) then
-			self:ActorOwnAdd(se.id)
+		if (owner_actor) then
+			mem.owner_actor = true
 		end
 		return true
 	end
@@ -176,15 +113,12 @@ end
 
 function CIedManager:actor_on_item_before_pickup(obj,flags)
 	if (self:BlowToItem(obj:section())) then
-		if (self.pickup_id == nil) then
-			self.pickup_id = obj:id()
-			CreateTimeEvent(AC_ID,"ied_pickup",0,self.PickupTimeEvent,self)
-		end
+		CreateTimeEvent(AC_ID,"pickup_ied",0,self.PickupTimeEvent,self,obj:id())
 		flags.ret_value = false
 	end
 end
 
-function CIedManager:PickupTimeEvent()
+function CIedManager:PickupTimeEvent(oid)
 	local obj = object_by_id(self.pickup_id)
 	local sec = obj and self:BlowToItem(obj:section())
 	if (sec) then
@@ -192,7 +126,6 @@ function CIedManager:PickupTimeEvent()
 		alife_release(obj)
 		news_manager.relocate_item(db.actor,"in",sec)
 	end
-	self.pickup_id = nil
 	return true
 end
 
@@ -228,40 +161,6 @@ function remote_func(obj)
 			HUD:Close()
 		end
 		hud_deploy_active(obj)
-	end
-end
-
-
-function generate_phone_number()
-	local operator_codes = {
-		[1] = {67,68,96,97,98}, -- Kyivstar 45%
-		[2] = {50,66,95,99}, -- Vodafone Ukraine 35%
-		[3] = {63,73,93}, -- Lifecell 20%
-	}
-	
-	local function is_unique_number(num)
-		for _,k in pairs(IED_MGR:Storage()) do
-			if (k.num == num) then
-				return false
-			end
-		end
-		return true
-	end
-	
-	for i=1,100 do
-		local opr = 0
-		local rnd = math.random(100)
-		if (rnd <= 45) then
-			opr = operator_codes[1]
-		elseif (rnd <= 80) then
-			opr = operator_codes[2]
-		else
-			opr = operator_codes[3]
-		end
-		local tmp = opr[math.random(#opr)] * 1000000 + math.random(0,999999)
-		if (is_unique_number(tmp)) then
-			return tmp
-		end
 	end
 end
 
@@ -415,7 +314,6 @@ function UIDeploy:Deploy()
 	k.gid = db.actor:game_vertex_id()
 	k.ang = xfm:getHPB()
 	k.fix = self.dir and true or false
-	k.num = generate_phone_number()
 	if (IED_MGR:Create(k,true)) then
 		itms_manager.play_item_sound(obj,0.75)
 		news_manager.relocate_item(db.actor,"out",obj:section())
@@ -524,7 +422,7 @@ class "CExplosiveBinder" (object_binder)
 function CExplosiveBinder:__init(obj) super(obj)
 	db.storage[self.object:id()] = {}
 	self.oid = self.object:id()
-	self.mdt = IED_MGR:StorageById(self.oid)
+	self.mem = IED_MGR:StorageById(self.oid)
 end
 
 function CExplosiveBinder:update(delta)
@@ -532,13 +430,13 @@ function CExplosiveBinder:update(delta)
 end
 
 function CExplosiveBinder:InitPosition()
-	local k = IED_MGR:Initial()[self.oid]
-	if (k) then
-		if (k.pos) then
-			self.object:force_set_position(k.pos)
+	local tmp = IED_MGR:Initial()[self.oid]
+	if (tmp) then
+		if (tmp.pos) then
+			self.object:force_set_position(tmp.pos)
 		end
-		if (k.ang) then
-			self.object:force_set_rotation(k.ang)
+		if (tmp.ang) then
+			self.object:force_set_rotation(tmp.ang)
 		end
 		IED_MGR:Initial()[self.oid] = nil
 	end
@@ -555,7 +453,7 @@ end
 
 function CExplosiveBinder:AfterNetSpawn()
 	-- This binder net_spawn runs before object net_spawn so objects still haven't had physic shell yet.
-	if (self.mdt and self.mdt.fix) then
+	if (self.mem and self.mem.fix) then
 		-- Physic shell should be available now but still check just in case.
 		if (self.object:get_physics_shell()) then
 			local ele = self.object:get_physics_shell():get_element_by_order(0)
@@ -575,19 +473,19 @@ function CExplosiveBinder:AfterNetSpawn()
 end
 
 function CExplosiveBinder:GetStoragePosition()
-	if (self.mdt and self.mdt.pos) then
-		local x = tonumber(self.mdt.pos.x)
-		local y = tonumber(self.mdt.pos.y)
-		local z = tonumber(self.mdt.pos.z)
+	if (self.mem and self.mem.pos) then
+		local x = tonumber(self.mem.pos.x)
+		local y = tonumber(self.mem.pos.y)
+		local z = tonumber(self.mem.pos.z)
 		return x and y and z and vector():set(x,y,z)
 	end
 end
 
 function CExplosiveBinder:GetStorageRotation()
-	if (self.mdt and self.mdt.ang) then
-		local x = tonumber(self.mdt.ang.x)
-		local y = tonumber(self.mdt.ang.y)
-		local z = tonumber(self.mdt.ang.z)
+	if (self.mem and self.mem.ang) then
+		local x = tonumber(self.mem.ang.x)
+		local y = tonumber(self.mem.ang.y)
+		local z = tonumber(self.mem.ang.z)
 		return x and y and z and vector():set(x,y,z)
 	end
 end

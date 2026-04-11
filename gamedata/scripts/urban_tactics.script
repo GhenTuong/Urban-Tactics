@@ -4,8 +4,6 @@
 	Twitter: https://twitter.com/GhenTuong
 ------------------------------------------------------------------------------------------------------]]
 
-
-
 --[[----------------------------------------------------------------------------------------------------
 	Manager
 ------------------------------------------------------------------------------------------------------]]
@@ -13,7 +11,11 @@ _G.URB_TAC = nil
 
 class "CUrbanTacticsManager"
 function CUrbanTacticsManager:__init()
+	self.online_monsters = {}
+	
 	RegisterScriptCallback("on_key_release",self)
+	RegisterScriptCallback("monster_on_net_spawn",self)
+	RegisterScriptCallback("monster_on_net_destroy",self)
 end
 
 function CUrbanTacticsManager:Name()
@@ -32,21 +34,139 @@ function CUrbanTacticsManager:DEBUG(str,...)
 	end
 end
 
+function CUrbanTacticsManager:monster_on_net_spawn(npc,se)
+	local oid = npc:id()
+	for i=#self.online_monsters,1,-1 do
+		if (oid == self.online_monsters[i]) then 
+			return 
+		end
+	end
+	self.online_monsters[#self.online_monsters+1] = oid
+end
+
+function CUrbanTacticsManager:monster_on_net_destroy(npc)
+	local oid = npc:id()
+	local idx = nil
+	for i=#self.online_monsters,1,-1 do
+		if (oid == self.online_monsters[i]) then
+			idx = i
+			break
+		end
+	end
+	table.remove(self.online_monsters,idx)
+end
+
 function CUrbanTacticsManager:on_key_release(dik)
 	if (dik == DIK_keys.DIK_NUMPAD6) then
-		give_object_to_actor("grenade_flame",5)
+		give_object_to_actor("grenade_f1",5)
 		give_object_to_actor("grenade_m18",5)
 		give_object_to_actor("grenade_rdg2",5)
 		give_object_to_actor("grenade_explosive_charge",5)
+		
+		give_object_to_actor("ied_remote_exp",2)
+		give_object_to_actor("ied_remote_rpg",2)
+		
+		give_object_to_actor("handheld_drone",1)
 	end
 end
 
 --[[----------------------------------------------------------------------------------------------------
 	Utilities
 ------------------------------------------------------------------------------------------------------]]
-function CUrbanTacticsManager:ObjectById(id)
-	return id and (db.storage[id] and db.storage[id].object or level.object_by_id(id))
+function CUrbanTacticsManager:object_by_id(oid)
+	return oid and (db.storage[oid] and db.storage[oid].object or level.object_by_id(oid))
 end
+
+function CUrbanTacticsManager:read_vec(str)
+	local v = str and str_explode(str,",")
+	local x = v and tonumber(v[1])
+	local y = v and tonumber(v[2])
+	local z = v and tonumber(v[3])
+	if (x and y and z) then
+		return vector():set(x,y,z)
+	end
+end
+
+function CUrbanTacticsManager:read_pos(str)
+	if (str and string.find(str,"pos:")) then
+		for s in string.gmatch(str,"pos:(%A+)") do
+			local p = str_explode(s,",")
+			local px = tonumber(p[1]) or 0
+			local py = tonumber(p[2]) or 0
+			local pz = tonumber(p[3]) or 0
+			return vector():set(px,py,pz)
+		end
+	end
+end
+
+function CUrbanTacticsManager:read_ang(str)
+	if (str and string.find(str,"ang:")) then
+		for s in string.gmatch(str,"ang:(%A+)") do
+			local p = str_explode(s,",")
+			local px = math.rad(tonumber(p[1]) or 0)
+			local py = math.rad(tonumber(p[2]) or 0)
+			local pz = math.rad(tonumber(p[3]) or 0)
+			return vector():set(px,py,pz)
+		end
+	end
+end
+
+function CUrbanTacticsManager:read_dir(str)
+	if (str and string.find(str,"dir:")) then
+		for s in string.gmatch(str,"dir:(%A+)") do
+			return vector():setHP(math.rad(tonumber(s) or 0),0):normalize()
+		end
+	end
+end
+
+LEVEL_CODE_TO_NAME = {
+	["mar"] = "k00_marsh",
+	["esc"] = "l01_escape",
+	["gar"] = "l02_garbage",
+	["agr"] = "l03_agroprom",
+	["val"] = "l04_darkvalley",
+	["bar"] = "l05_bar",
+	["ros"] = "l06_rostok",
+	["mil"] = "l07_military",
+	["yan"] = "l08_yantar",
+	["cit"] = "l09_deadcity",
+	["lim"] = "l10_limansk",
+	["rad"] = "l10_radar",
+	["red"] = "l10_red_forest",
+	["pri"] = "l11_pripyat",
+	["ae1"] = "l12_stancia",
+	["ae2"] = "l12_stancia_2",
+	["gen"] = "l13_generators",
+	["zat"] = "zaton",
+	["jup"] = "jupiter",
+	["yat"] = "pripyat",
+	["trc"] = "k02_trucks_cemetery",
+	["dsk"] = "k01_darkscape",
+}
+
+function CUrbanTacticsManager:read_lvl(str)
+	local p = str and str_explode(str,"|")
+	return p and p[1] and LEVEL_CODE_TO_NAME[tostring(p[1])]
+end
+
+local cache_smart_by_level = {}
+function CUrbanTacticsManager:smart_by_level(lvl)
+	if (lvl) then
+		if (cache_smart_by_level[lvl]) then
+			local sec = cache_smart_by_level[lvl]
+			return SIMBOARD.smarts_by_names[sec]
+		end
+		local af = alife()
+		local gg = game_graph()
+		for i,v in pairs(SIMBOARD.smarts_by_names) do
+			if (af:level_name(gg:vertex(v.m_game_vertex_id):level_id()) == lvl) then
+				cache_smart_by_level[lvl] = i
+				return v
+			end
+		end
+	end
+end
+
 
 --[[----------------------------------------------------------------------------------------------------
 	Registers

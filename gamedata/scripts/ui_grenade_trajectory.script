@@ -8,6 +8,8 @@
 TRAJECTORY_GRD = true
 TRAJECTORY_LCH = true
 
+GRENADE_POS_ADJUST = vector():set(0,0,0)
+
 --[[----------------------------------------------------------------------------------------------------
 	Utilities
 ------------------------------------------------------------------------------------------------------]]
@@ -312,7 +314,7 @@ end
 
 function CGrenadeTrajectory:GetFirePosition(wpn)
 	if (self.dt.is_grenade) then
-		local vec = vector():set(wpn:cast_Missile():GetThrowPoint())
+		local vec = vector():set(wpn:cast_Missile():GetThrowPoint()):add(GRENADE_POS_ADJUST)
 		cam_xform():transform_tiny(vec)
 		return vec
 	end
@@ -368,16 +370,4 @@ function on_game_start()
 	RegisterScriptCallback("GUI_on_hide",on_show_hide)
 	RegisterScriptCallback("actor_on_first_update",actor_on_first_update)
 	RegisterScriptCallback("actor_on_net_destroy",actor_on_net_destroy)
-end
-
-function DEBUG(str,...)
-	local func = debug.getinfo(2,"S").source
-	local line = debug.getinfo(2,"l").currentline
-	func = string.sub(func,#func - string.find(string.reverse(func),"\\") + 2,#func)
-	local p = {...}
-	if (p and (#p ~= 0)) then
-		printf(string.format("[GhenTuong] %s:%s | %s",tostring(func),tostring(line),str),...)
-	else
-		printf(string.format("[GhenTuong] %s:%s | ",tostring(func),tostring(line)) .. "%s",str)
-	end
 end

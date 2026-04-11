@@ -13,23 +13,6 @@ _G.AddScriptCallback("drone_on_net")
 _G.AddScriptCallback("drone_on_death")
 
 --[[----------------------------------------------------------------------------------------------------
-	Utilities
-------------------------------------------------------------------------------------------------------]]
-function object_by_id(id)
-	return id and (db.storage[id] and db.storage[id].object or level.object_by_id(id))
-end
-
-function actor_give_item(sec)
-	news_manager.relocate_item(db.actor,"in",sec)
-	alife_create_item(sec,db.actor)
-end
-
-function actor_lost_item(itm)
-	news_manager.relocate_item(db.actor,"out",itm:section())
-	alife_release(itm)
-end
-
---[[----------------------------------------------------------------------------------------------------
 	Manager
 ------------------------------------------------------------------------------------------------------]]
 _G.DRONE_MGR = nil
@@ -37,7 +20,6 @@ _G.DRONE_MGR = nil
 class "CDroneManager"
 function CDroneManager:__init()
 	self.DRONE_STORAGE = {}
-	self.DRONE_ACT_OWN = {}
 	
 	self.cfg_item_to_object = {}
 	self.cfg_object_to_item = {}
@@ -82,20 +64,22 @@ function CDroneManager:__init()
 	RegisterScriptCallback("actor_on_attach_vehicle",self)
 	RegisterScriptCallback("actor_on_detach_vehicle",self)
 	
+	RegisterScriptCallback("map_spot_menu_add_property",self)
+	RegisterScriptCallback("map_spot_menu_property_clicked",self)
+	
 	self.drone_script_callback_registered = false
 end
 
 function CDroneManager:save_state(m_data)
 	m_data.GT_DRONE_STORAGE = self.DRONE_STORAGE
-	m_data.GT_DRONE_ACT_OWN = self.DRONE_ACT_OWN
 end
 
 function CDroneManager:load_state(m_data)
 	self.DRONE_STORAGE = m_data.GT_DRONE_STORAGE or {}
-	self.DRONE_ACT_OWN = m_data.GT_DRONE_ACT_OWN or {}
 end
 
 function CDroneManager:actor_on_first_update()
+--[[
 	for idx=#self.DRONE_ACT_OWN,1,-1 do
 		local id = self.DRONE_ACT_OWN[idx]
 		local se = id and alife_object(id)
@@ -114,6 +98,7 @@ function CDroneManager:actor_on_first_update()
 			self:ActorOwnDel(se.id)
 		end
 	end
+--]]
 end
 
 function CDroneManager:server_entity_on_register(se,flag)
@@ -128,13 +113,12 @@ end
 function CDroneManager:server_entity_on_unregister(se,flag)
 	if (flag == "se_car") and (self:IsDrone(se:section_name())) then
 		DEBUG("server_entity_on_unregister(%s)",se:name())
-		self:ActorOwnDel(se.id)
 		self.DRONE_STORAGE[se.id] = nil
 	end
 end
 
 function CDroneManager:actor_on_attach_vehicle(obj)
-	if (obj and DRONE_MGR:IsDrone(obj:section())) then
+	if (obj and self:IsDrone(obj:section())) then
 		if (self.drone_script_callback_registered ~= true) then
 			self.drone_script_callback_registered = true
 			RegisterScriptCallback("on_key_press",on_key_press)
@@ -143,7 +127,7 @@ function CDroneManager:actor_on_attach_vehicle(obj)
 end
 
 function CDroneManager:actor_on_detach_vehicle(obj)
-	if (obj and DRONE_MGR:IsDrone(obj:section())) then
+	if (obj and self:IsDrone(obj:section())) then
 		if (self.drone_script_callback_registered == true) then
 			self.drone_script_callback_registered = false
 			UnregisterScriptCallback("on_key_press",on_key_press)
@@ -155,28 +139,6 @@ function CDroneManager:IsDrone(sec)
 	return sec and (SYS_GetParam(0,sec,"kind") == "v_drone") and true or false
 end
 
-function CDroneManager:ActorOwn()
-	return self.DRONE_ACT_OWN
-end
-
-function CDroneManager:ActorOwnAdd(id)
-	for i,v in ipairs(self.DRONE_ACT_OWN) do 
-		if (v == id) then 
-			return 
-		end
-	end
-	self.DRONE_ACT_OWN[#self.DRONE_ACT_OWN+1] = id
-end
-
-function CDroneManager:ActorOwnDel(id)
-	for i,v in ipairs(self.DRONE_ACT_OWN) do 
-		if (v == id) then
-			table.remove(self.DRONE_ACT_OWN,i)
-			break
-		end
-	end
-end
-
 function CDroneManager:ItemToObject(sec)
 	return sec and self.cfg_item_to_object[sec]
 end
@@ -185,21 +147,30 @@ function CDroneManager:ObjectToItem(sec)
 	return sec and self.cfg_object_to_item[sec]
 end
 
-function CDroneManager:StorageById(id)
-	return id and self.DRONE_STORAGE[id]
+function CDroneManager:StorageById(oid)
+	return oid and self.DRONE_STORAGE[oid]
 end
 
-function CDroneManager:Create(prs,actor_own)
+function CDroneManager:StorageCopy(src_id,dst_id)
+	local sec = self:GetAttachmentSection(src_id)
+	self:SetAttachmentSection(dst_id,sec)
+end
+
+function CDroneManager:Create(prs,owner_actor)
 	local sec = prs and prs.sec
 	local pos = prs and prs.pos
 	local vid = prs and prs.vid
 	local gid = prs and prs.gid
 	local ang = prs and prs.ang
+	local itm = prs and prs.itm
 	if (sec and pos and vid and gid and ang and self:IsDrone(sec)) then
 		local se = alife_create(sec,pos,vid,gid)
 		se.angle = vector():set(ang.y,ang.x,ang.z)
-		if (actor_own) then
-			DRONE_MGR:ActorOwnAdd(se.id)
+		if (itm) then
+			self:StorageCopy(itm:id(),se.id)
+		end
+		if (owner_actor) then
+			self:StorageById(se.id).owner_actor = true
 		end
 		return true
 	end
@@ -207,35 +178,11 @@ function CDroneManager:Create(prs,actor_own)
 	return false
 end
 
-function CDroneManager:DroneAttach(id,sec)
-	local obj = id and object_by_id(id)
-	local mgr = obj and obj:binded_object()
-	local k = self:StorageById(id)
-	if (k and k.attachment_sec == nil) then
-		k.attachment_sec = sec
-		if (mgr) then
-			mgr:AttachmentUpdate()
-		end
-	end
-end
-
-function CDroneManager:DroneDetach(id)
-	local obj = id and object_by_id(id)
-	local mgr = obj and obj:binded_object()
-	local k = self:StorageById(id)
-	if (k and k.attachment_sec ~= nil) then
-		k.attachment_sec = nil
-		if (mgr) then
-			mgr:AttachmentUpdate()
-		end
-	end
-end
-
 function CDroneManager:Attachments()
 	return self.cfg_attachments
 end
 
-function CDroneManager:DroneAttachmentData(sec)
+function CDroneManager:AttachmentData(sec)
 	if (self.cfg_drone_attachment_data[sec] == nil) then
 		local lst = {}
 		local str = sec and SYS_GetParam(0,sec,"attachment_data")
@@ -252,6 +199,44 @@ function CDroneManager:DroneAttachmentData(sec)
 	end
 	return self.cfg_drone_attachment_data[sec]
 end
+
+function CDroneManager:GetAttachmentSection(oid)
+	return se_load_var(oid,nil,"drone_attachment_section")
+end
+
+function CDroneManager:SetAttachmentSection(oid,sec)
+	se_save_var(oid,nil,"drone_attachment_section",sec)
+end
+
+function CDroneManager:map_spot_menu_add_property(property_ui,oid,lvl)
+	local obj = db.drones[oid]
+	if (obj) then
+		property_ui:AddItem(GT("drone_pda_cmd_control"))
+	end
+end
+
+function CDroneManager:map_spot_menu_property_clicked(property_ui,oid,lvl,sec)
+	local obj = db.drones[oid]
+	if (obj) then
+		if (sec == GT("drone_pda_cmd_control")) then
+			db.actor:activate_slot(0)
+			if (obj:binded_object()) then
+				obj:binded_object():TakeControl()
+			end
+		end
+	end
+end
+
+function CDroneManager:TakeControlTimeEvent(oid)
+	local obj = db.drones[oid]
+	if (obj) then
+		if (obj:binded_object()) then
+			obj:binded_object():TakeControl()
+		end
+	end
+	return true
+end
+
 
 --[[----------------------------------------------------------------------------------------------------
 	Storage
@@ -270,9 +255,19 @@ function on_before_hit(obj,shit,bone_id)
 	return true
 end
 
-function on_before_use(obj,cam_pos,cam_dir,actor_center)
-	drone_interact_start(obj)
+function on_before_use(obj,cam_pos,cam_dir,act_pos)
+	CreateTimeEvent(obj:id(),"on_before_use",0,pick_up_time_event,obj:id())
 	return false
+end
+
+function pick_up_time_event(oid)
+	local obj = URB_TAC:object_by_id(oid)
+	local sec = obj and DRONE_MGR:ObjectToItem(obj:section())
+	if (sec) then
+		local se = alife_create_item(sec,db.actor)
+		DRONE_MGR:StorageCopy(obj:id(),se.id)
+	end
+	return true
 end
 
 --[[----------------------------------------------------------------------------------------------------
@@ -332,6 +327,7 @@ function CDroneBinder:__init(obj) super(obj)
 	self.mem = DRONE_MGR:StorageById(self.oid)
 	
 	self.attachment_bone = SYS_GetParam(0,self.object:section(),"attachment_bone")
+	self.map_spot = SYS_GetParam(0,self.object:section(),"map_spot")
 	
 	self.fc_delta = nil
 	self.fc_timer = nil
@@ -410,7 +406,6 @@ end
 function CDroneBinder:ExplosiveDetonate(who)
 	local sec = self:ExplosiveSection()
 	if (sec and self.object:alive()) then
-		DRONE_MGR:DroneDetach(self.oid)
 		self.car:LoadExplosiveSection(sec)
 		self.car:SetInitiator(who and who:id() or self.oid)
 		self.object:kill(who)
@@ -418,11 +413,29 @@ function CDroneBinder:ExplosiveDetonate(who)
 end
 
 function CDroneBinder:ExplosiveSection()
-	local sec = self.mem and self.mem.attachment_sec
+	local sec = DRONE_MGR:GetAttachmentSection(self.object:id())
 	local tmp = DRONE_MGR:Attachments()[sec]
 	if (tmp and (tmp.kind == "exp")) then
 		return tmp.sec
 	end
+end
+
+function CDroneBinder:CreateMapSpot()
+	if not (self.map_spot) then
+		return
+	end
+	if (level.map_has_object_spot(self.oid,self.map_spot) == 0) then
+		local txt = ui_item.get_sec_name(self.object:section())
+		local sec = DRONE_MGR:GetAttachmentSection(self.object:id())
+		if (sec) then
+			txt = txt .. "\n" .. strformat(GT("drone_pda_info_attach"),ui_item.get_sec_name(sec))
+		end
+		level.map_add_object_spot(self.oid,self.map_spot,txt)
+	end
+end
+
+function CDroneBinder:RemoveMapSpot()
+	level.map_remove_all_object_spots(self.oid)
 end
 
 ----------------------------------------------------------------------------------------------------
@@ -443,7 +456,9 @@ function CDroneBinder:net_spawn(se_abstract)
 	db.add_obj(self.object)
 	add_drone(self.object)
 	self.object:set_callback(callback.death,CDroneBinder.death_callback,self)
+	
 	self:AttachmentUpdate()
+	self:CreateMapSpot()
 	
 	CreateTimeEvent(self.oid,"after_net_spawn",0,self.after_net_spawn,self)
 	SendScriptCallback("drone_on_net",self.object,true)
@@ -451,6 +466,8 @@ function CDroneBinder:net_spawn(se_abstract)
 end
 
 function CDroneBinder:net_destroy()
+	self:RemoveMapSpot()
+	
 	SendScriptCallback("drone_on_net",self.object,false)
 	db.del_obj(self.object)
 	del_drone(self.object)
@@ -490,241 +507,6 @@ function CDroneBinder:after_net_spawn()
 		end
 	end
 	return true
-end
-
---[[----------------------------------------------------------------------------------------------------
-	Interaction
-UI to take drones, attach/detach items on drones.
-------------------------------------------------------------------------------------------------------]]
-local INTERACT_PICKUP = 0
-local INTERACT_ATTACH = 1
-local INTERACT_DETACH = 2
-
-local COLOR_W = utils_xml.get_color("white",true)
-local COLOR_O = utils_xml.get_color("orange",true)
-
-class "UIDroneInteractAction" (CUIListBoxItem)
-function UIDroneInteractAction:__init(idx,cmd,sec) super(idx,cmd,sec)
-	self.idx = idx
-	self.cmd = cmd
-	self.sec = sec
-	self.is_hightlight = false
-	
-	local txt = self:GetTextItem()
-	txt:SetText("nil")
-	txt:SetEllipsis(true)
-	txt:SetTextColor(COLOR_W)
-	txt:SetWndSize(vector2():set(400,20))
-	
-	if (self.cmd == INTERACT_PICKUP) then
-		txt:SetText(GT("drone_interact_pickup"))
-	end
-	if (self.cmd == INTERACT_ATTACH) then
-		txt:SetText(strformat(GT("drone_interact_attach"),ui_item.get_sec_name(self.sec)))
-	end
-	if (self.cmd == INTERACT_DETACH) then
-		txt:SetText(strformat(GT("drone_interact_detach"),ui_item.get_sec_name(self.sec)))
-	end
-end
-
-function UIDroneInteractAction:SetHightlight(flag)
-	if (flag) then
-		if (self.is_hightlight ~= true) then
-			self.is_hightlight = true
-			self:GetTextItem():SetTextColor(COLOR_O)
-		end
-	else
-		if (self.is_hightlight ~= false) then
-			self.is_hightlight = false
-			self:GetTextItem():SetTextColor(COLOR_W)
-		end
-	end
-end
-
---------------------------------------------------------------------------------------------------------
-GUI = nil
-
-function drone_interact_start(obj)
-	if (GUI == nil) then
-		GUI = UIDroneInteract()
-	end
-	if (GUI) and (not GUI:IsShown()) then
-		GUI:Reset(obj)
-		GUI:ShowDialog(true)
-		Register_UI("UIDroneInteract","drone_object")
-	end
-end
-
-class "UIDroneInteract" (CUIScriptWnd)
-function UIDroneInteract:__init(obj) super(obj)
-	self:SetWndRect(Frect():set(0,0,1280,768))
-	self:SetAutoDelete(true)
-	self.xml = CScriptXmlInit()
-	self.xml:ParseFile("ui_drone_interact.xml")
-	
-	self.actions = self.xml:InitListBox("actions",self)
-	self.actions:Show(true)
-	self:Register(self.actions,"actions")
-	self:AddCallback("actions",ui_events.LIST_ITEM_CLICKED,self.OnSelectActionList,self)
-	
-	self.selected_idx = 0
-end
-
-function UIDroneInteract:__finalize()
-end
-
-function UIDroneInteract:Update()
-	CUIScriptWnd.Update(self)
-	
-	local obj = object_by_id(self.oid)
-	if not (obj and obj:alive()) then
-		return self:Close()
-	end
-	
-	local vec = game.world2ui(obj:position(),false,false)
-	if not (self:ScreenPosValid(vec)) then
-		return self:Close()
-	end
-	self.actions:SetWndPos(vec)
-	
-	if (self.actions:GetSize() > 0) then
-		local n = self.actions:GetSize()
-		for i=0,n-1 do
-			local k = self.actions:GetItemByIndex(i)
-			if (k) then
-				if (k:IsCursorOverWindow()) then
-					self.selected_idx = i
-				end
-				if (self.selected_idx == i) then
-					k:SetHightlight(true)
-				else
-					k:SetHightlight(false)
-				end
-			end
-		end
-	end
-end
-
-function UIDroneInteract:Reset(obj)
-	if not (obj and obj:alive()) then
-		return self:Close()
-	end
-	self.oid = obj:id()
-	self.sec = obj:section()
-	self.selected_idx = 0
-	
-	self.actions:RemoveAll()
-	self.actions:AddExistingItem(UIDroneInteractAction(self.actions:GetSize(),INTERACT_PICKUP))
-	
-	local k = DRONE_MGR:StorageById(self.oid)
-	if (k and k.attachment_sec) then
-		self.actions:AddExistingItem(UIDroneInteractAction(self.actions:GetSize(),INTERACT_DETACH,k.attachment_sec))
-	else
-		for _,sec in ipairs(DRONE_MGR:DroneAttachmentData(self.sec)) do
-			local itm = sec and db.actor:object(sec)
-			if (itm) then
-				self.actions:AddExistingItem(UIDroneInteractAction(self.actions:GetSize(),INTERACT_ATTACH,itm:section()))
-			end
-		end
-	end
-end
-
-function UIDroneInteract:OnSelectActionList()
-	if (self.actions:GetSize() == 0) then
-		return
-	end
-	self:SelectAction()
-end
-
-function UIDroneInteract:SelectAction()
-	local k = self.actions:GetItemByIndex(self.selected_idx)
-	if (k) then
-		if (k.cmd == INTERACT_PICKUP) then
-			self:Pickup()
-			return self:Close()
-		end
-		if (k.cmd == INTERACT_ATTACH) then
-			self:Attach(k.sec)
-			return self:Close()
-		end
-		if (k.cmd == INTERACT_DETACH) then
-			self:Detach()
-			return self:Close()
-		end
-	end
-end
-
-function UIDroneInteract:ChangeNextOption(flag)
-	if (self.actions:GetSize() == 0) then
-		return
-	end
-	if (flag) then
-		self.selected_idx = clamp(self.selected_idx - 1,0,self.actions:GetSize() - 1)
-	else
-		self.selected_idx = clamp(self.selected_idx + 1,0,self.actions:GetSize() - 1)
-	end
-end
-
-function UIDroneInteract:Pickup()
-	local obj = object_by_id(self.oid)
-	local sec = obj and DRONE_MGR:ObjectToItem(obj:section())
-	if (sec) then
-		self:Detach()
-		actor_give_item(sec)
-		DRONE_MGR:DroneDetach(self.oid)
-		alife_release(obj)
-	end
-end
-
-function UIDroneInteract:Attach(sec)
-	local itm = db.actor:object(sec)
-	if (itm) then
-		itms_manager.play_item_sound(itm,0.75)
-		actor_lost_item(itm)
-		DRONE_MGR:DroneAttach(self.oid,sec)
-	end
-end
-
-function UIDroneInteract:Detach()
-	local k = DRONE_MGR:StorageById(self.oid)
-	if (k and k.attachment_sec) then
-		actor_give_item(k.attachment_sec)
-		DRONE_MGR:DroneDetach(self.oid)
-	end
-end
-
-function UIDroneInteract:OnKeyboard(dik,keyboard_action)
-	local res = CUIScriptWnd.OnKeyboard(self,dik,keyboard_action)
-	if (res == false) then
-		if (dik == DIK_keys.DIK_ESCAPE) or (dik == DIK_keys.MOUSE_2) then 
-			self:Close()
-		end
-		if (keyboard_action == ui_events.WINDOW_KEY_PRESSED) then
-			if (dik == bind_to_dik(key_bindings.kFWD)) then
-				self:ChangeNextOption(true)
-			end
-			if (dik == bind_to_dik(key_bindings.kBACK)) then
-				self:ChangeNextOption(false)
-			end
-			if (dik == bind_to_dik(key_bindings.kL_STRAFE)) then
-				self:Close()
-			end
-			if (dik == bind_to_dik(key_bindings.kR_STRAFE)) then
-				self:SelectAction()
-			end
-		end
-	end
-	return res
-end
-
-function UIDroneInteract:Close()
-	self.oid = nil
-	self:HideDialog()
-	Unregister_UI("UIDroneInteract")
-end
-
-function UIDroneInteract:ScreenPosValid(vec)
-	return vec and (vec.x ~= -9999) and (vec.y ~= 0) and (vec.x <= 1024) and (vec.y <= 768)
 end
 
 --[[----------------------------------------------------------------------------------------------------
