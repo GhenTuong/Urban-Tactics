@@ -1,0 +1,32 @@
+	<drone_map_spot>
+		<level_map spot="drone_map_spot_level"/>
+		<mini_map spot="drone_map_spot_small"/>
+	</drone_map_spot>
+	<drone_map_spot_level x="0" y="0" width="19" height="19" alignment="c" stretch="1" location_level="5">
+		<texture a="255" color="pda_green">ui_drone_icon</texture>
+	</drone_map_spot_level>				
+	<drone_map_spot_small x="0" y="0" width="11" height="11" alignment="c" stretch="1" location_level="10" scale_min="3.0" scale_max="5.1" scale="0">
+		<texture a="255" color="pda_green">ui_drone_icon</texture>
+	</drone_map_spot_small>
+	
+	<ied_map_spot_pick>
+		<level_map spot="ied_map_spot_pick_level"/>
+		<mini_map spot="ied_map_spot_pick_small"/>
+	</ied_map_spot_pick>
+	<ied_map_spot_pick_level x="0" y="0" width="19" height="19" alignment="c" stretch="1" location_level="5">
+		<texture a="255" color="pda_yellow">ui_remote_ied</texture>
+	</ied_map_spot_pick_level>				
+	<ied_map_spot_pick_small x="0" y="0" width="11" height="11" alignment="c" stretch="1" location_level="10" scale_min="3.0" scale_max="5.1" scale="0">
+		<texture a="255" color="pda_yellow">ui_remote_ied</texture>
+	</ied_map_spot_pick_small>
+	
+	<ied_map_spot_none>
+		<level_map spot="ied_map_spot_none_level"/>
+		<mini_map spot="ied_map_spot_none_small"/>
+	</ied_map_spot_none>
+	<ied_map_spot_none_level x="0" y="0" width="19" height="19" alignment="c" stretch="1" location_level="5">
+		<texture a="255" color="pda_green">ui_remote_ied</texture>
+	</ied_map_spot_none_level>				
+	<ied_map_spot_none_small x="0" y="0" width="11" height="11" alignment="c" stretch="1" location_level="10" scale_min="3.0" scale_max="5.1" scale="0">
+		<texture a="255" color="pda_green">ui_remote_ied</texture>
+	</ied_map_spot_none_small>

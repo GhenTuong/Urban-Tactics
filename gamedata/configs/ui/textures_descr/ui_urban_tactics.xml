@@ -4,6 +4,6 @@
 	</file>
 	
 	<file name="ui\urban_tactics\ui_remote_ied">
-	    <texture id="ui_remote_ied" x="0" y="0" width="256" height="128" />
+	    <texture id="ui_remote_ied" x="21" y="21" width="20" height="20" />
 	</file>
 </w>

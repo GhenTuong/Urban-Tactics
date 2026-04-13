@@ -1,0 +1,13 @@
+--[[----------------------------------------------------------------------------------------------------
+	GhenTuong
+	Discord: GhenTuong#1278
+	Twitter: https://twitter.com/GhenTuong
+------------------------------------------------------------------------------------------------------]]
+
+function on_xml_read()
+    RegisterScriptCallback("on_xml_read",function(str,xml)
+        if (str == [[ui\map_spots.xml]]) or (str == [[ui\map_spots_16.xml]]) then
+            xml:insertFromXMLFile([[ui\map_spots_urban_tactics.xml]])
+        end
+    end)
+end

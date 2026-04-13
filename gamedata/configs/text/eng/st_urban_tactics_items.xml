@@ -3,9 +3,6 @@
 	<string id="st_defuse">
 		<text>Defuse ($$ACTION_USE$$)</text>
 	</string>
-	<string id="st_ied_remote">
-		<text>plant with remote trigger</text>
-	</string>
 	
 <!------------------------------------------------------------------------------------------------------
 	Launchers

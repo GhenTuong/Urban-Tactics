@@ -227,17 +227,6 @@ function CDroneManager:map_spot_menu_property_clicked(property_ui,oid,lvl,sec)
 	end
 end
 
-function CDroneManager:TakeControlTimeEvent(oid)
-	local obj = db.drones[oid]
-	if (obj) then
-		if (obj:binded_object()) then
-			obj:binded_object():TakeControl()
-		end
-	end
-	return true
-end
-
-
 --[[----------------------------------------------------------------------------------------------------
 	Storage
 ------------------------------------------------------------------------------------------------------]]
@@ -406,6 +395,7 @@ end
 function CDroneBinder:ExplosiveDetonate(who)
 	local sec = self:ExplosiveSection()
 	if (sec and self.object:alive()) then
+		DRONE_MGR:SetAttachmentSection(self.object:id(),nil)
 		self.car:LoadExplosiveSection(sec)
 		self.car:SetInitiator(who and who:id() or self.oid)
 		self.object:kill(who)
@@ -420,10 +410,16 @@ function CDroneBinder:ExplosiveSection()
 	end
 end
 
-function CDroneBinder:CreateMapSpot()
-	if not (self.map_spot) then
+function CDroneBinder:UpdateMapSpot(enable)
+	level.map_remove_all_object_spots(self.oid)
+	if not (enable) then
 		return
 	end
+	
+	if not (self.object:alive() and self.map_spot and self.mem.owner_actor) then
+		return
+	end
+	
 	if (level.map_has_object_spot(self.oid,self.map_spot) == 0) then
 		local txt = ui_item.get_sec_name(self.object:section())
 		local sec = DRONE_MGR:GetAttachmentSection(self.object:id())
@@ -432,10 +428,6 @@ function CDroneBinder:CreateMapSpot()
 		end
 		level.map_add_object_spot(self.oid,self.map_spot,txt)
 	end
-end
-
-function CDroneBinder:RemoveMapSpot()
-	level.map_remove_all_object_spots(self.oid)
 end
 
 ----------------------------------------------------------------------------------------------------
@@ -455,10 +447,10 @@ function CDroneBinder:net_spawn(se_abstract)
 	end
 	db.add_obj(self.object)
 	add_drone(self.object)
-	self.object:set_callback(callback.death,CDroneBinder.death_callback,self)
+	self.object:set_callback(callback.death,self.death_callback,self)
 	
 	self:AttachmentUpdate()
-	self:CreateMapSpot()
+	self:UpdateMapSpot(true)
 	
 	CreateTimeEvent(self.oid,"after_net_spawn",0,self.after_net_spawn,self)
 	SendScriptCallback("drone_on_net",self.object,true)
@@ -466,7 +458,7 @@ function CDroneBinder:net_spawn(se_abstract)
 end
 
 function CDroneBinder:net_destroy()
-	self:RemoveMapSpot()
+	self:UpdateMapSpot(false)
 	
 	SendScriptCallback("drone_on_net",self.object,false)
 	db.del_obj(self.object)
@@ -476,6 +468,7 @@ function CDroneBinder:net_destroy()
 end
 
 function CDroneBinder:death_callback(obj,who)
+	self:RemoveMapSpot()
 	SendScriptCallback("drone_on_death",obj,who)
 end
 

@@ -51,7 +51,6 @@ on_before_hit				= drone_bind.on_before_hit
 on_before_use				= drone_bind.on_before_use
 
 [m_drone_item]:tch_quest
-script_binding				= bind_item.bind
 use1_functor				= drone_item.drone_deploy_desc
 use1_action_functor			= drone_item.drone_deploy_func
 use2_functor				= drone_item.drone_detach_desc
@@ -114,19 +113,22 @@ rot_speed					= 3.14,1.0,0
 ;----------------------------------------------------------------------------------------------------
 ;	Ied
 ;----------------------------------------------------------------------------------------------------
-[m_ied_remote_blow_base]:identity_immunities
+[m_ied_remote_blow_base]:identity_immunities,instant_action_fuse
+GroupControlSection			= spawn_group
+cform						= skeleton
 kind						= e_ied
 class						= S_EXPLO
 script_binding				= ied_gameplay.init
 cost						= 0
 can_take					= true
 immunities_sect				= planted_mine_immunities
-use_action_hint				= ied_remote_use_hint
+use_action_hint				= ied_remote_pickup
 
 [m_ied_remote_item_base]:identity_immunities
+GroupControlSection			= spawn_group
+cform						= skeleton
 kind						= i_tool
 class						= II_ANTIR
-cform						= skeleton
 inv_vol						= 1
 attach_angle_offset			= 0.0,0.0,0.0
 attach_position_offset		= 0.0,0.0,0.0
@@ -139,9 +141,10 @@ eat_radiation				= 0
 eat_alcohol					= 0
 eat_portions_num			= 1
 wounds_heal_perc			= 0
+can_take					= true
 
-use4_functor                = ied_gameplay.remote_desc
-use4_action_functor         = ied_gameplay.remote_func
+use1_functor                = ied_gameplay.deploy_desc
+use1_action_functor         = ied_gameplay.deploy_func
 
 ;----------------------------------------------------------------------------------------------------
 [ied_remote_rpg]:rpg_new_blow,m_ied_remote_item_base

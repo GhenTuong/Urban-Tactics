@@ -1,5 +1,25 @@
 <?xml version="1.0" encoding="windows-1251"?>
 <string_table>
+	<!-- IED -->
+	<string id="ied_remote_pickup">
+		<text>Take ($$ACTION_USE$$)</text>
+	</string>
+	<string id="ied_remote_deploy">
+		<text>Deploy</text>
+	</string>
+	
+	<string id="ied_remote_spot_info">
+		<text>%c[pda_yellow]Selected to trigger</text>
+	</string>
+	<string id="ied_remote_spot_pick">
+		<text>Select</text>
+	</string>
+	<string id="ied_remote_spot_none">
+		<text>Deselect</text>
+	</string>
+	
+	
+	<!-- Drone -->
 	<string id="drone_pda_info_attach">
 		<text>Attach: %s</text>
 	</string>
