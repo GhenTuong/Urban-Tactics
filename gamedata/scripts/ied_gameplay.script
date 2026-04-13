@@ -8,6 +8,9 @@ local GT = game.translate_string
 local IED_MAP_SPOT_PICK = "ied_map_spot_pick"
 local IED_MAP_SPOT_NONE = "ied_map_spot_none"
 
+KEY_DETONATE_DEF = DIK_keys.DIK_J
+KEY_DETONATE = KEY_DETONATE_DEF
+
 local VEC_Y = vector():set(0,1,0)
 
 db.ied_objects = {}
@@ -30,15 +33,15 @@ function CIedManager:__init()
 	self.IED_STORAGE = {}
 	self.IED_INITIAL = {}
 	
-	self.cfg_item_to_blow = {}
-	self.cfg_blow_to_item = {}
+	self.cfg_item_to_object = {}
+	self.cfg_object_to_item = {}
 	
 	local ini = ini_file([[items\settings\deploy.ltx]])
 	if (ini:section_exist("ieds")) then
 		for idx,val in pairs(utils_data.collect_section(ini,"ieds",true)) do
 			if (ini_sys:section_exist(idx) and ini_sys:section_exist(val) and self:IsIed(val)) then
-				self.cfg_item_to_blow[idx] = val
-				self.cfg_blow_to_item[val] = idx
+				self.cfg_item_to_object[idx] = val
+				self.cfg_object_to_item[val] = idx
 			else
 				URB_TAC:DEBUG("Wrong parameters [%s] = %s | [%s] %s",idx,val,ini_sys:section_exist(idx),ini_sys:section_exist(val))
 			end
@@ -47,13 +50,16 @@ function CIedManager:__init()
 	
 	RegisterScriptCallback("save_state",self)
 	RegisterScriptCallback("load_state",self)
-	RegisterScriptCallback("actor_on_first_update",self)
 	RegisterScriptCallback("server_entity_on_register",self)
 	RegisterScriptCallback("server_entity_on_unregister",self)
-	RegisterScriptCallback("actor_on_item_before_pickup",self)
-	
 	RegisterScriptCallback("map_spot_menu_add_property",self)
 	RegisterScriptCallback("map_spot_menu_property_clicked",self)
+	RegisterScriptCallback("actor_on_item_before_pickup",self)
+	
+	RegisterScriptCallback("GUI_on_show",self)
+	RegisterScriptCallback("GUI_on_hide",self)
+	RegisterScriptCallback("actor_on_net_destroy",self)
+	RegisterScriptCallback("on_key_press",self)
 end
 
 function CIedManager:save_state(m_data)
@@ -84,12 +90,12 @@ function CIedManager:IsIed(sec)
 	return sec and (SYS_GetParam(0,sec,"kind") == "e_ied") and true or false
 end
 
-function CIedManager:ItemToBlow(sec)
-	return sec and self.cfg_item_to_blow[sec]
+function CIedManager:ItemToObject(sec)
+	return sec and self.cfg_item_to_object[sec]
 end
 
-function CIedManager:BlowToItem(sec)
-	return sec and self.cfg_blow_to_item[sec]
+function CIedManager:ObjectToItem(sec)
+	return sec and self.cfg_object_to_item[sec]
 end
 
 function CIedManager:Storage()
@@ -115,7 +121,7 @@ function CIedManager:Create(prs,owner_actor)
 		local se = alife_create(sec,pos,vid,gid)
 		se.angle = vector():set(ang.y,ang.x,ang.z)
 		
-		local mem = self:StorageById(se.id)
+		local mem = IED_MGR:StorageById(se.id)
 		if (fix) then
 			mem.fix = fix
 			mem.pos = {x = pos.x,y = pos.y,z = pos.z}
@@ -130,43 +136,6 @@ function CIedManager:Create(prs,owner_actor)
 	end
 	URB_TAC:DEBUG("Wrong parameters %s %s %s %s %s",sec,pos,vid,gid,ang)
 	return false
-end
-
-function CIedManager:actor_on_item_before_pickup(obj,flags)
-	if (self:BlowToItem(obj:section())) then
-		CreateTimeEvent(AC_ID,"pickup_ied",0,self.PickupTimeEvent,self,obj:id())
-		flags.ret_value = false
-	end
-end
-
-function CIedManager:PickupTimeEvent(oid)
-	local obj = URB_TAC:object_by_id(self.pickup_id)
-	local sec = obj and self:BlowToItem(obj:section())
-	if (sec) then
-		alife_create_item(sec,db.actor)
-		alife_release(obj)
-		news_manager.relocate_item(db.actor,"in",sec)
-	end
-	return true
-end
-
-function CIedManager:Explode(num)
-	for id,k in pairs(self.IED_STORAGE) do
-		if (k.num == num) then
-			local obj = URB_TAC:object_by_id(id)
-			if (obj and obj:condition() > 0) then
-				local h = hit()
-				h.type		= hit.fire_wound
-				h.power		= 100
-				h.impulse	= 0.0
-				h.direction = vector():set(0,1,0)
-				h.draftsman = db.actor
-				obj:hit(h)
-				obj:set_condition(0)
-			end
-			break
-		end
-	end
 end
 
 function CIedManager:map_spot_menu_add_property(property_ui,oid,lvl)
@@ -200,6 +169,60 @@ function CIedManager:map_spot_menu_property_clicked(property_ui,oid,lvl,sec)
 	end
 end
 
+function CIedManager:actor_on_item_before_pickup(obj,flags)
+	if (self:ObjectToItem(obj:section())) then
+		CreateTimeEvent(AC_ID,"pickup",0,self.PickupTimeEvent,self,obj:id())
+		flags.ret_value = false
+	end
+end
+
+function CIedManager:PickupTimeEvent(oid)
+	local obj = db.ied_objects[oid]
+	local sec = obj and self:ObjectToItem(obj:section())
+	if (sec) then
+		alife_create_item(sec,db.actor)
+		alife_release(obj)
+		news_manager.relocate_item(db.actor,"in",sec)
+	end
+	return true
+end
+
+function CIedManager:on_key_press(dik)
+	if (dik == KEY_DETONATE) then
+		if (db.actor:active_slot() == 8 and db.actor:active_item()) then
+			self:Explode()
+		end
+	end
+end
+
+function CIedManager:Explode()
+	for oid,obj in pairs(db.ied_objects) do
+		if (obj:condition() > 0 and IED_MGR:StorageById(oid).owner_actor) then
+			local h = hit()
+			h.type		= hit.fire_wound
+			h.power		= 100
+			h.impulse	= 0.0
+			h.direction = vector():set(0,1,0)
+			h.draftsman = db.actor
+			obj:hit(h)
+			obj:set_condition(0)
+		end
+	end
+end
+
+function CIedManager:GUI_on_show()
+	hud_deploy_update()
+end
+
+function CIedManager:GUI_on_hide()
+	hud_deploy_update()
+end
+
+function CIedManager:actor_on_net_destroy()
+	hud_deploy_remove()
+end
+
+
 --[[----------------------------------------------------------------------------------------------------
 	Main
 ------------------------------------------------------------------------------------------------------]]
@@ -208,7 +231,7 @@ function deploy_desc(obj)
 end
 
 function deploy_func(obj)
-	if (deploy_condition() and IED_MGR:ItemToBlow(obj:section())) then
+	if (deploy_condition() and IED_MGR:ItemToObject(obj:section())) then
 		if (HUD) then
 			HUD:Close()
 		end
@@ -241,7 +264,7 @@ function hud_deploy_active(obj)
 	if (HUD == nil) then
 		HUD = UIDeploy(obj)
 		get_hud():AddDialogToRender(HUD)
-		RegisterScriptCallback("on_key_press",on_key_press)
+		RegisterScriptCallback("on_key_press",hud_on_key_press)
 	end
 end
 
@@ -249,7 +272,7 @@ function hud_deploy_remove()
 	if (HUD) then
 		get_hud():RemoveDialogToRender(HUD)
 		HUD = nil
-		UnregisterScriptCallback("on_key_press",on_key_press)
+		UnregisterScriptCallback("on_key_press",hud_on_key_press)
 	end
 end
 
@@ -259,7 +282,7 @@ function hud_deploy_update()
 	end
 end
 
-function on_key_press(dik)
+function hud_on_key_press(dik)
 	if (HUD) then
 		HUD:OnKeyPress(dik)
 	end
@@ -349,7 +372,6 @@ function UIDeploy:AttachmentTransform()
 			b = nor:getH() - dir:getH() + math.pi
 		end
 		return matrix():setHPB(h,p,b):translate_over(vec)
-		return
 	end
 	self.fix = false
 	return matrix():setHPB(dir:getH(),0,0):translate_over(vector():mad(pos,dir,self.dist_def))
@@ -366,7 +388,7 @@ function UIDeploy:Deploy()
 	end
 	local obj = URB_TAC:object_by_id(self.oid)
 	local k = {}
-	k.sec = IED_MGR:ItemToBlow(obj:section())
+	k.sec = IED_MGR:ItemToObject(obj:section())
 	k.pos = vector():set(xfm.c)
 	k.vid = db.actor:level_vertex_id()
 	k.gid = db.actor:game_vertex_id()
@@ -382,7 +404,7 @@ function UIDeploy:Deploy()
 end
 
 function UIDeploy:GetAttachmentVisual(obj)
-	local sec = obj and IED_MGR:ItemToBlow(obj:section())
+	local sec = obj and IED_MGR:ItemToObject(obj:section())
 	return sec and SYS_GetParam(0,sec,"visual")
 end
 
@@ -496,19 +518,19 @@ function CIedBinder:UpdateMapSpot(enable)
 		return
 	end
 	
-	if not (self.mem.owner_actor) then
+	if not (self.object:condition() > 0 and self.mem.owner_actor) then
 		return
 	end
 	
 	if (self.mem.is_selected) then
 		if (level.map_has_object_spot(self.oid,IED_MAP_SPOT_PICK) == 0) then
-			local txt = ui_item.get_sec_name(self.object:section())
-			txt = txt .. "\n" .. GT("ied_remote_spot_info")
+			local txt = ui_item.get_sec_short_name(self.object:section())
+			txt = txt .. [[\n]] .. GT("ied_remote_spot_info")
 			level.map_add_object_spot(self.oid,IED_MAP_SPOT_PICK,txt)
 		end
 	else
 		if (level.map_has_object_spot(self.oid,IED_MAP_SPOT_NONE) == 0) then
-			local txt = ui_item.get_sec_name(self.object:section())
+			local txt = ui_item.get_sec_short_name(self.object:section())
 			level.map_add_object_spot(self.oid,IED_MAP_SPOT_NONE,txt)
 		end
 	end
@@ -562,22 +584,8 @@ function CIedBinder:load(packet)
 end
 
 --[[----------------------------------------------------------------------------------------------------
-	Callbacks
-------------------------------------------------------------------------------------------------------]]
-function on_show_hide()
-	hud_deploy_update()
-end
-
-function actor_on_net_destroy()
-	hud_deploy_remove()
-end
-
---[[----------------------------------------------------------------------------------------------------
 	Registers
 ------------------------------------------------------------------------------------------------------]]
 function on_game_start()
 	_G.IED_MGR = CIedManager()
-	RegisterScriptCallback("GUI_on_show",on_show_hide)
-	RegisterScriptCallback("GUI_on_hide",on_show_hide)
-	RegisterScriptCallback("actor_on_net_destroy",actor_on_net_destroy)
 end

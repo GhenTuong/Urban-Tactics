@@ -1,9 +1,5 @@
 <?xml version="1.0" encoding="windows-1251"?>
 <string_table>
-	<string id="st_defuse">
-		<text>Defuse ($$ACTION_USE$$)</text>
-	</string>
-	
 <!------------------------------------------------------------------------------------------------------
 	Launchers
 ------------------------------------------------------------------------------------------------------->
@@ -90,10 +86,13 @@
 	</string>
 	
 <!------------------------------------------------------------------------------------------------------
-	IEDs
+	IED
 ------------------------------------------------------------------------------------------------------->
 	<string id="ied_remote_rpg_name">
 		<text>Improvised explosive device (based on PG-7V warhead)</text>
+	</string>
+	<string id="ied_remote_rpg_shrt">
+		<text>IED (PG-7V warhead)</text>
 	</string>
 	<string id="ied_remote_rpg_desc">
 		<text>An improvised explosive device made from a PG-7V warhead and a cellphone. The impact fuse was removed and replaced with a cellphone for remote triggering.\n \n
@@ -109,6 +108,9 @@
 	<string id="ied_remote_exp_name">
 		<text>Improvised explosive device (based on explosive charge)</text>
 	</string>
+	<string id="ied_remote_exp_shrt">
+		<text>IED (explosive charge)</text>
+	</string>
 	<string id="ied_remote_exp_desc">
 		<text>An improvised explosive device made from an explosive charge and a cellphone. The time fuse was removed and replaced with a cellphone for remote triggering.\n \n
 		%c[ui_gray_3]PROPERTIES:\n
@@ -120,6 +122,20 @@
 		%c[d_purple] • %c[ui_gray_2] fragments' radius: %c[ui_gray_1]20 m\n
 		%c[d_purple] • %c[ui_gray_2] av. number of fragments: %c[ui_gray_1]100 (shrapnel)\n
 		%c[d_purple] • %c[ui_gray_2] explosion delay: %c[ui_gray_1]none\n
+		</text>
+	</string>
+	
+<!------------------------------------------------------------------------------------------------------
+	Drone
+------------------------------------------------------------------------------------------------------->
+	<string id="handheld_drone_name">
+		<text>Handheld Drone</text>
+	</string>
+	<string id="handheld_drone_desc">
+		<text>An unmanned aerial vehicle small enough to be man-portable. The drone is very maneuverable, can fit through tight spaces, and provides an edge view over a wide area. It is suitable for reconnaissance purposes.\n \n
+		%c[d_purple] • %c[ui_gray_2] Drones on the field will be lost if the owner leaves the current area.\n
+		%c[d_purple] • %c[ui_gray_2] Controlled by PDA.\n
+		%c[d_purple] • %c[ui_gray_2] Can attach remote-controlled explosives.\n
 		</text>
 	</string>
 </string_table>

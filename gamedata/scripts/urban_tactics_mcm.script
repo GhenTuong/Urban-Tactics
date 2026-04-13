@@ -12,14 +12,8 @@ function on_option_change()
 		ui_grenade_trajectory.TRAJECTORY_GRD = ui_mcm.get("gt/urban_tactics/trajectory_grd")
 		ui_grenade_trajectory.TRAJECTORY_LCH = ui_mcm.get("gt/urban_tactics/trajectory_lch")
 		
-		ui_grenade_wheel.KEY_GRENADE_WHEEL = ui_mcm.get("gt/urban_tactics/key_grenade_wheel") or ui_grenade_wheel.KEY_GRENADE_WHEEL_DEF
-		
-		ui_phone_nokia.KEY_BACK = ui_mcm.get("gt/urban_tactics/key_nokia_back") or ui_phone_nokia.KEY_BACK_DEF
-		ui_phone_nokia.KEY_NEXT = ui_mcm.get("gt/urban_tactics/key_nokia_next") or ui_phone_nokia.KEY_NEXT_DEF
-		ui_phone_nokia.KEY_CALL = ui_mcm.get("gt/urban_tactics/key_nokia_call") or ui_phone_nokia.KEY_CALL_DEF
-		ui_phone_nokia.KEY_RESET = ui_mcm.get("gt/urban_tactics/key_nokia_reset") or ui_phone_nokia.KEY_RESET_DEF
-		
-		drone_bind.KEY_DETONATE = ui_mcm.get("gt/urban_tactics/key_drone_detonate") or drone_bind.KEY_DETONATE_DEF
+		ied_gameplay.KEY_DETONATE = ui_mcm.get("gt/urban_tactics/key_ied_detonate") or ied_gameplay.KEY_DETONATE_DEF
+		drone_gameplay.KEY_DETONATE = ui_mcm.get("gt/urban_tactics/key_drone_detonate") or drone_gameplay.KEY_DETONATE_DEF
 	end
 end
 
@@ -36,20 +30,14 @@ function on_mcm_load()
 			{id = "trajectory_grd",type = "check",val = 1,def = true},
 			{id = "trajectory_lch",type = "check",val = 1,def = true},
 			
-			{id = "key_grenade_wheel",type = "key_bind",val = 2,def = ui_grenade_wheel.KEY_GRENADE_WHEEL_DEF},
-			{id = "grenade_wheel_line",type = "line"},
-			
 			{id = "ied_name",type = "title",text = "ui_mcm_gt_urban_tactics_ied_name"},
 			{id = "ied_desc",type = "desc",text = "ui_mcm_gt_urban_tactics_ied_desc"},
-			{id = "key_nokia_back",type = "key_bind",val = 2,def = ui_phone_nokia.KEY_BACK_DEF},
-			{id = "key_nokia_next",type = "key_bind",val = 2,def = ui_phone_nokia.KEY_NEXT_DEF},
-			{id = "key_nokia_call",type = "key_bind",val = 2,def = ui_phone_nokia.KEY_CALL_DEF},
-			{id = "key_nokia_reset",type = "key_bind",val = 2,def = ui_phone_nokia.KEY_RESET_DEF},
+			{id = "key_ied_detonate",type = "key_bind",val = 2,def = ied_gameplay.KEY_DETONATE_DEF},
 			{id = "ied_line",type = "line"},
 			
 			{id = "drone_name",type = "title",text = "ui_mcm_gt_urban_tactics_drone_name"},
 			{id = "drone_desc",type = "desc",text = "ui_mcm_gt_urban_tactics_drone_desc"},
-			{id = "key_drone_detonate",type = "key_bind",val = 2,def = drone_bind.KEY_DETONATE_DEF},
+			{id = "key_drone_detonate",type = "key_bind",val = 2,def = drone_gameplay.KEY_DETONATE_DEF},
 			{id = "drone_line",type = "line"},
 		}
 	}, "gt"

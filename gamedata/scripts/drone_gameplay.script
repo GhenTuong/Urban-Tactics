@@ -1,0 +1,795 @@
+--[[----------------------------------------------------------------------------------------------------
+	GhenTuong
+	Discord: GhenTuong#1278
+	Twitter: https://twitter.com/GhenTuong
+	To do:
+------------------------------------------------------------------------------------------------------]]
+local GT = game.translate_string
+
+_G.AddScriptCallback("drone_on_net")
+_G.AddScriptCallback("drone_on_death")
+
+local DRONE_MAP_SPOT = "drone_map_spot"
+
+KEY_DETONATE_DEF = DIK_keys.DIK_J
+KEY_DETONATE = KEY_DETONATE_DEF
+
+db.drone_objects = {}
+
+function add_drone(obj)
+	db.drone_objects[obj:id()] = obj
+end
+
+function del_drone(obj)
+	db.drone_objects[obj:id()] = nil
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Manager
+------------------------------------------------------------------------------------------------------]]
+_G.DRONE_MGR = nil
+
+class "CDroneManager"
+function CDroneManager:__init()
+	self.DRONE_STORAGE = {}
+	
+	self.cfg_item_to_object = {}
+	self.cfg_object_to_item = {}
+	
+	do
+		local ini = ini_file([[items\settings\deploy.ltx]])
+		if (ini:section_exist("drones")) then
+			for idx,val in pairs(utils_data.collect_section(ini,"drones",true)) do
+				if (ini_sys:section_exist(idx) and ini_sys:section_exist(val) and self:IsDrone(val)) then
+					self.cfg_item_to_object[idx] = val
+					self.cfg_object_to_item[val] = idx
+				else
+					URB_TAC:DEBUG("Wrong parameters [%s] %s",idx,val)
+				end
+			end
+		end
+	end
+	
+	self.drone_script_callback_registered = false
+		
+	RegisterScriptCallback("save_state",self)
+	RegisterScriptCallback("load_state",self)
+	RegisterScriptCallback("server_entity_on_register",self)
+	RegisterScriptCallback("server_entity_on_unregister",self)
+	RegisterScriptCallback("actor_on_first_update",self)
+	RegisterScriptCallback("map_spot_menu_add_property",self)
+	RegisterScriptCallback("map_spot_menu_property_clicked",self)
+	
+	RegisterScriptCallback("actor_on_attach_vehicle",self)
+	RegisterScriptCallback("actor_on_detach_vehicle",self)
+	
+	RegisterScriptCallback("GUI_on_show",self)
+	RegisterScriptCallback("GUI_on_hide",self)
+	RegisterScriptCallback("actor_on_net_destroy",self)
+	RegisterScriptCallback("ActorMenu_on_item_drag_drop",self)
+end
+
+function CDroneManager:save_state(m_data)
+	m_data.GT_DRONE_STORAGE = self.DRONE_STORAGE
+end
+
+function CDroneManager:load_state(m_data)
+	self.DRONE_STORAGE = m_data.GT_DRONE_STORAGE or {}
+end
+
+function CDroneManager:actor_on_first_update()
+--[[
+	for idx=#self.DRONE_ACT_OWN,1,-1 do
+		local id = self.DRONE_ACT_OWN[idx]
+		local se = id and alife_object(id)
+		if (se) then
+			if not (simulation_objects.is_on_the_actor_level(se)) then
+				if (self:IsDrone(se:section_name())) then
+					URB_TAC:DEBUG("Release drone for not in actor level [%s]",se:name())
+					alife_release(se)
+				else
+					URB_TAC:DEBUG("ERROR: object invalid [%s]",se:name())
+					self:ActorOwnDel(se.id)
+				end
+			end
+		else
+			URB_TAC:DEBUG("ERROR: object does not exist")
+			self:ActorOwnDel(se.id)
+		end
+	end
+--]]
+end
+
+function CDroneManager:server_entity_on_register(se,flag)
+	if (flag == "se_car") and (self:IsDrone(se:section_name())) then
+		if (self.DRONE_STORAGE[se.id] == nil) then
+			self.DRONE_STORAGE[se.id] = {}
+		end
+		URB_TAC:DEBUG("server_entity_on_register(%s)",se:name())
+	end
+end
+
+function CDroneManager:server_entity_on_unregister(se,flag)
+	if (flag == "se_car") and (self:IsDrone(se:section_name())) then
+		URB_TAC:DEBUG("server_entity_on_unregister(%s)",se:name())
+		self.DRONE_STORAGE[se.id] = nil
+	end
+end
+
+function CDroneManager:IsDrone(sec)
+	return sec and (SYS_GetParam(0,sec,"kind") == "v_drone") and true or false
+end
+
+function CDroneManager:ItemToObject(sec)
+	return sec and self.cfg_item_to_object[sec]
+end
+
+function CDroneManager:ObjectToItem(sec)
+	return sec and self.cfg_object_to_item[sec]
+end
+
+function CDroneManager:StorageById(oid)
+	return oid and self.DRONE_STORAGE[oid]
+end
+
+function CDroneManager:StorageCopy(src_id,dst_id)
+	local sec = self:GetAttachSection(src_id)
+	self:SetAttachSection(dst_id,sec)
+end
+
+function CDroneManager:Create(prs,owner_actor)
+	local sec = prs and prs.sec
+	local pos = prs and prs.pos
+	local vid = prs and prs.vid
+	local gid = prs and prs.gid
+	local ang = prs and prs.ang
+	local itm = prs and prs.itm
+	if (sec and pos and vid and gid and ang and self:IsDrone(sec)) then
+		local se = alife_create(sec,pos,vid,gid)
+		se.angle = vector():set(ang.y,ang.x,ang.z)
+		if (itm) then
+			self:StorageCopy(itm:id(),se.id)
+		end
+		if (owner_actor) then
+			self:StorageById(se.id).owner_actor = true
+		end
+		return true
+	end
+	URB_TAC:DEBUG("Wrong parameters %s %s %s %s %s",sec,pos,vid,gid,ang)
+	return false
+end
+
+function CDroneManager:GetAttachSection(oid)
+	return se_load_var(oid,nil,"drone_attach_section")
+end
+
+function CDroneManager:SetAttachSection(oid,sec)
+	se_save_var(oid,nil,"drone_attach_section",sec)
+end
+
+function CDroneManager:DroneAttach(obj,itm)
+	if not (self:ItemToObject(obj:section()) and IED_MGR:ItemToObject(itm:section())) then
+		return
+	end
+	if (self:GetAttachSection(obj:id())) then
+		return
+	end
+	self:SetAttachSection(obj:id(),itm:section())
+	itms_manager.play_item_sound(itm,0.75)
+	alife_release(itm)
+end
+
+function CDroneManager:DroneDetach(obj)
+	if not (self:ItemToObject(obj:section())) then
+		return
+	end
+	local sec = self:GetAttachSection(obj:id())
+	if (sec) then
+		alife_create_item(sec,db.actor)
+		self:SetAttachSection(obj:id(),nil)
+	end
+end
+
+function CDroneManager:map_spot_menu_add_property(property_ui,oid,lvl)
+	local obj = db.drone_objects[oid]
+	if (obj) then
+		property_ui:AddItem(GT("drone_pda_cmd_control"))
+	end
+end
+
+function CDroneManager:map_spot_menu_property_clicked(property_ui,oid,lvl,sec)
+	local obj = db.drone_objects[oid]
+	if (obj) then
+		if (sec == GT("drone_pda_cmd_control")) then
+			db.actor:activate_slot(0)
+			if (obj:binded_object()) then
+				obj:binded_object():TakeControl()
+			end
+		end
+	end
+end
+
+function CDroneManager:actor_on_attach_vehicle(obj)
+	if (obj and self:IsDrone(obj:section())) then
+		if (self.drone_script_callback_registered ~= true) then
+			self.drone_script_callback_registered = true
+			RegisterScriptCallback("on_key_press",self)
+		end
+	end
+end
+
+function CDroneManager:actor_on_detach_vehicle(obj)
+	if (obj and self:IsDrone(obj:section())) then
+		if (self.drone_script_callback_registered == true) then
+			self.drone_script_callback_registered = false
+			UnregisterScriptCallback("on_key_press",self)
+		end
+	end
+end
+
+function CDroneManager:on_key_press(dik)
+	if (dik == KEY_DETONATE) then
+		local obj = db.actor:get_attached_vehicle()
+		if (obj and self:IsDrone(obj:section())) then
+			if (obj:binded_object()) then
+				obj:binded_object():ExplosiveDetonate(db.actor)
+			end
+		end
+	end
+end
+
+function CDroneManager:GUI_on_show()
+	hud_deploy_update()
+end
+
+function CDroneManager:GUI_on_hide()
+	hud_deploy_update()
+end
+
+function CDroneManager:actor_on_net_destroy()
+	hud_deploy_remove()
+end
+
+function CDroneManager:ActorMenu_on_item_drag_drop(itm,obj,slot_from,slot_next)
+	if not (slot_from == EDDListType.iActorBag and slot_next == EDDListType.iActorBag) then
+        return
+    end
+	if (self:ItemToObject(obj:section())) then
+		self:DroneDetach(obj)
+		self:DroneAttach(obj,itm)
+	end
+end
+
+--------------------------------------------------------------------------------------------------------
+--[[
+local DRONE_CONTROLLER_MAX_RANGE = 200
+local DRONE_CONTROLLER_WARNING_PPE = 52000
+
+function drone_controller_warning_ppe_update(flag)
+	if (flag) then
+		level.add_pp_effector("radiation.ppe",DRONE_CONTROLLER_WARNING_PPE,true)
+	else
+		level.remove_pp_effector(DRONE_CONTROLLER_WARNING_PPE)
+	end
+end
+
+function actor_on_update()
+	local obj = db.actor:get_attached_vehicle()
+	if (obj and DRONE_MGR:IsDrone(obj:section())) then
+		local range = math.pow(DRONE_CONTROLLER_MAX_RANGE * 0.9,2)
+		if (db.actor:position():distance_to_sqr(obj:position()) > range) then
+			drone_controller_warning_ppe_update(true)
+		else
+			drone_controller_warning_ppe_update(false)
+		end
+	end
+end
+--]]
+
+--[[----------------------------------------------------------------------------------------------------
+	Item
+------------------------------------------------------------------------------------------------------]]
+function drone_deploy_desc(obj)
+	return GT("drone_item_deploy")
+end
+
+function drone_deploy_func(obj)
+	hud_deploy_active(obj)
+end
+
+function drone_detach_desc(obj)
+	local sec = DRONE_MGR:GetAttachSection(obj:id())
+	if (sec) then
+		return strformat(GT("drone_item_detach"),ui_item.get_sec_short_name(sec))
+	end
+end
+
+function drone_detach_func(obj)
+	DRONE_MGR:DroneDetach(obj)
+end
+
+function deploy_condition()
+	if not (db.actor:alive()) then
+		return false
+	end
+	if (db.actor:get_attached_vehicle()) then
+		return false
+	end
+	if (db.actor:is_talking()) then
+		return false
+	end
+	if (IsMoveState("mcClimb")) then
+		return false
+	end
+	return true
+end
+
+function on_before_hit(obj,shit,bone_id)
+	return true
+end
+
+function on_before_use(obj,cam_pos,cam_dir,act_pos)
+	CreateTimeEvent(obj:id(),"pickup",0,pick_up_time_event,obj:id())
+	return false
+end
+
+function pick_up_time_event(oid)
+	local obj = db.drone_objects[oid]
+	local sec = obj and DRONE_MGR:ObjectToItem(obj:section())
+	if (sec) then
+		local se = alife_create_item(sec,db.actor)
+		DRONE_MGR:StorageCopy(obj:id(),se.id)
+		alife_release(obj)
+		news_manager.relocate_item(db.actor,"in",sec)
+	end
+	return true
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	UIDeploy
+------------------------------------------------------------------------------------------------------]]
+HUD = nil
+
+function hud_deploy_active(obj)
+	if (HUD == nil) then
+		HUD = UIDeploy(obj)
+		get_hud():AddDialogToRender(HUD)
+		RegisterScriptCallback("on_key_press",hud_on_key_press)
+	end
+end
+
+function hud_deploy_remove()
+	if (HUD) then
+		get_hud():RemoveDialogToRender(HUD)
+		HUD = nil
+		UnregisterScriptCallback("on_key_press",hud_on_key_press)
+	end
+end
+
+function hud_deploy_update()
+	if (HUD) then
+		HUD:Update(true)
+	end
+end
+
+function hud_on_key_press(dik)
+	if (HUD) then
+		HUD:OnKeyPress(dik)
+	end
+end
+
+class "UIDeploy" (CUIScriptWnd)
+function UIDeploy:__init(obj) super(obj)
+	self:SetWndRect(Frect():set(0,0,1280,768))
+	self:SetAutoDelete(true)
+	
+	self.oid = obj:id()
+	self.sec = obj:section()
+	self.vis = self:GetAttachmentVisual(obj)
+	self.atm_name = "deploy_drone"
+	self.dist_def = 1
+	self.dist_max = 3
+	
+	self.radius_min = 0.5
+	self.radius_max = 1.0
+	self.height_min = -1.8
+	self.height_max = 0.0
+	
+	self.exclusive_radius = 0.4
+	self.exclusive_height = 0.05
+	self.vec_up = vector():set(VEC_Y)
+	self.vec_dw = vector():set(self.vec_up):invert()
+	
+	self.active = db.actor:active_slot()
+	self.hiding = (self.active ~= 0) and true or false
+	db.actor:activate_slot(0)
+	hide_hud_inventory()
+end
+
+function UIDeploy:__finalize()
+end
+
+function UIDeploy:Update()
+	CUIScriptWnd.Update(self)
+	
+	if not (main_hud_shown()) then
+		return self:Close()
+	end
+	
+	if not (deploy_condition()) then
+		return self:Close()
+	end
+	
+	if not (URB_TAC:object_by_id(self.oid)) then
+		return self:Close()
+	end
+	
+	if not (self.vis) then
+		return self:Close()
+	end
+	
+	if (self.hiding) then
+		if (db.actor:active_slot() == 0) then
+			self.hiding = false
+		elseif (db.actor:active_slot() ~= self.active) then
+			return self:Close()
+		end
+	else
+		if (db.actor:active_slot() ~= 0) then
+			return self:Close()
+		end
+	end
+	
+	self.pos = self:GetDeployPosition()
+	
+	if (self.pos) then
+		if (level.get_attachment(self.atm_name) == nil) then
+			level.add_attachment(self.atm_name,self.vis)
+		end
+		local atm = level.get_attachment(self.atm_name)
+		if (atm) then
+			atm:set_position(self.pos)
+			local h = math.deg(device().cam_dir:getH())
+			atm:set_rotation(h,0,0)
+		end
+	else
+		if (level.get_attachment(self.atm_name)) then
+			level.remove_attachment(self.atm_name)
+		end
+	end
+	
+	if (self:CheckDeployPosition()) then
+		
+	end
+end
+
+function UIDeploy:Deploy()
+	if (self.hiding) then
+		return
+	end
+	if (self:CheckDeployPosition() == false) then
+		return
+	end
+	local atm = level.get_attachment(self.atm_name)
+	local xfm = atm and atm:get_transform()
+	if not (xfm) then
+		return
+	end
+	local obj = URB_TAC:object_by_id(self.oid)
+	local k = {}
+	k.sec = DRONE_MGR:ItemToObject(obj:section())
+	k.pos = vector():set(xfm.c)
+	k.vid = db.actor:level_vertex_id()
+	k.gid = db.actor:game_vertex_id()
+	k.ang = xfm:getHPB()
+	k.itm = obj
+	if (DRONE_MGR:Create(k,true)) then
+		itms_manager.play_item_sound(obj,0.75)
+		news_manager.relocate_item(db.actor,"out",obj:section())
+		alife_release(obj)
+	end
+	self:ResumeActive()
+	return self:Close()
+end
+
+function UIDeploy:GetAttachmentVisual(obj)
+	local sec = obj and DRONE_MGR:ItemToObject(obj:section())
+	return sec and SYS_GetParam(0,sec,"visual")
+end
+
+function UIDeploy:GetDeployPosition()
+	local pos = device().cam_pos
+	local dir = device().cam_dir
+	if (dir:getP() > 0) then
+		return
+	end
+	local ray = ray_pick(pos,dir,self.dist_max,2,db.actor)
+	local vec = ray:query() and vector():mad(pos,dir,ray:get_distance())
+	if (self:ValidatePosition(vec)) then
+		return vec
+	end
+end
+
+function UIDeploy:ValidatePosition(vec)
+	if not (vec) then
+		return false
+	end
+	local rds = device().cam_pos:distance_to_xz_sqr(vec)
+	if (rds < math.pow(self.radius_min,2)) or (rds > math.pow(self.radius_max,2)) then
+		return false
+	end
+	local tmp = vec.y - device().cam_pos.y
+	if (tmp < self.height_min) or (tmp > self.height_max) then
+		return false
+	end
+	return true
+end
+
+function UIDeploy:CheckDeployPosition()
+	local atm = level.get_attachment(self.atm_name)
+	local tmp = atm and vector():set(atm:get_transform().c)
+	local pos = tmp and vector():mad(tmp,self.vec_up,self.exclusive_height)
+	if not (pos) then
+		return false
+	end
+	
+	local function check(rds)
+		local dir = vector():setHP(math.rad(rds*10),0):normalize()
+		do
+			local ray = ray_pick(pos,dir,self.exclusive_radius,3,db.actor)
+			if (ray:query()) then
+				return false
+			end
+		end
+		local vec = vector():mad(pos,dir,self.exclusive_radius)
+		do
+			local ray = ray_pick(vec,self.vec_dw,self.exclusive_radius,3,db.actor)
+			if (ray:query()) then
+				if (ray:get_object()) then
+					return false
+				end
+				if (ray:get_distance() > self.exclusive_height * 2) then
+					return false
+				end
+			end
+		end
+		return true
+	end
+	
+	for k=0,35 do
+		if (check(k) == false) then
+			return false
+		end
+	end
+	return true
+end
+
+function UIDeploy:ResumeActive()
+	if (self.active ~= 0) then
+		db.actor:activate_slot(self.active)
+	end
+end
+
+function UIDeploy:Cancel()
+	self:ResumeActive()
+	return self:Close()
+end
+
+function UIDeploy:Close()
+	if (level.get_attachment(self.atm_name)) then
+		level.remove_attachment(self.atm_name)
+	end
+	hud_deploy_remove()
+end
+
+function UIDeploy:OnKeyPress(dik)
+	if (dik == DIK_keys.MOUSE_1) then
+		return self:Deploy()
+	end
+	if (dik == DIK_keys.MOUSE_2) then
+		return self:Cancel()
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Binder
+------------------------------------------------------------------------------------------------------]]
+function init(obj)
+	obj:bind_object(CDroneBinder(obj))
+end
+
+class "CDroneBinder" (object_binder)
+function CDroneBinder:__init(obj) super(obj)
+	db.storage[self.object:id()] = {}
+	self.oid = self.object:id()
+	self.car = self.object:get_car()
+	self.mem = DRONE_MGR:StorageById(self.oid)
+	
+	self.attach_bone = SYS_GetParam(0,self.object:section(),"attach_bone")
+	
+	self.fc_delta = nil
+	self.fc_timer = nil
+	self.fc_delay = 100
+	self.object:set_fastcall(self.update,self)
+end
+
+function CDroneBinder:update(delta)
+	object_binder.update(self,delta)
+	local t = time_global()
+	if (self.fc_timer and (self.fc_timer > t)) then
+		return
+	end
+	self.fc_delta = self.fc_timer and (t - self.fc_timer + self.fc_delay) or 0
+	self.fc_timer = t + self.fc_delay
+end
+
+function CDroneBinder:PayloadUpdate()
+	local bid = self.attach_bone and self.object:bone_id(self.attach_bone)
+	if (bid and bid ~= 65535) then
+		local k = self:PayloadInfo()
+		if (k) then
+			if (self.object:get_attachment("payload") == nil) then
+				self.object:add_attachment("payload",k.visual):set_parent_bone(bid)
+				self.car:SetFlyWeightAdd(k.weight)
+			end
+		else
+			if (self.object:get_attachment("payload")) then
+				self.object:remove_attachment("payload")
+				self.car:SetFlyWeightAdd(0)
+			end
+		end
+	else
+		URB_TAC:DEBUG("[%s] wrong parameters bone_name:%s bid:%s",self.object:name(),bone_name,bid)
+	end
+end
+
+function CDroneBinder:PayloadInfo()
+	local sec = self:ExplosiveSection()
+	if (sec) then
+		local visual = SYS_GetParam(0,sec,"visual")
+		local weight = SYS_GetParam(2,sec,"weight",0)
+		if (visual and weight) then
+			local t = {}
+			t.visual = visual
+			t.weight = weight
+			return t
+		end
+	end
+end
+
+function CDroneBinder:CanTakeControl()
+	if not (self.object:alive()) then
+		return false
+	end
+	local d = math.pow(200,2)
+	if not (db.actor:position():distance_to_sqr(self.object:position()) < d) then
+		return false
+	end
+	return true
+end
+
+function CDroneBinder:TakeControl()
+	if (self.object:alive()) then
+		local obj = db.actor:get_attached_vehicle()
+		if (obj) then
+			if (obj:id() == self.oid) then
+				return
+			end
+			db.actor:detach_vehicle(true)
+		end
+		db.actor:attach_vehicle(self.object,true)
+	end
+end
+
+function CDroneBinder:ExplosiveDetonate(who)
+	local sec = self:ExplosiveSection()
+	if (sec and self.object:alive()) then
+		DRONE_MGR:SetAttachSection(self.object:id(),nil)
+		self.car:LoadExplosiveSection(sec)
+		self.car:SetInitiator(who and who:id() or self.oid)
+		self.object:kill(who)
+	end
+end
+
+function CDroneBinder:ExplosiveSection()
+	return IED_MGR:ItemToObject(DRONE_MGR:GetAttachSection(self.object:id()))
+end
+
+function CDroneBinder:UpdateMapSpot(enable)
+	level.map_remove_all_object_spots(self.oid)
+	if not (enable) then
+		return
+	end
+	
+	if not (self.object:alive() and self.mem.owner_actor) then
+		return
+	end
+	
+	if (level.map_has_object_spot(self.oid,DRONE_MAP_SPOT) == 0) then
+		local txt = ui_item.get_sec_name(self.object:section())
+		local sec = DRONE_MGR:GetAttachSection(self.object:id())
+		if (sec) then
+			txt = txt .. [[\n]] .. strformat(GT("drone_pda_info_attach"),ui_item.get_sec_short_name(sec))
+		end
+		level.map_add_object_spot(self.oid,DRONE_MAP_SPOT,txt)
+	end
+end
+
+----------------------------------------------------------------------------------------------------
+function CDroneBinder:reload(section)
+	object_binder.reload(self,section)
+end
+
+function CDroneBinder:reinit()
+	object_binder.reinit(self)
+	db.storage[self.object:id()] = db.storage[self.object:id()] or {}
+	self.st = db.storage[self.object:id()]
+end
+
+function CDroneBinder:net_spawn(se_abstract)
+	if not (object_binder.net_spawn(self,se_abstract)) then
+		return false
+	end
+	db.add_obj(self.object)
+	add_drone(self.object)
+	self.object:set_callback(callback.death,self.death_callback,self)
+	
+	self:PayloadUpdate()
+	self:UpdateMapSpot(true)
+	
+	CreateTimeEvent(self.oid,"after_net_spawn",0,self.after_net_spawn,self)
+	SendScriptCallback("drone_on_net",self.object,true)
+	return true
+end
+
+function CDroneBinder:net_destroy()
+	self:UpdateMapSpot(false)
+	
+	SendScriptCallback("drone_on_net",self.object,false)
+	db.del_obj(self.object)
+	del_drone(self.object)
+	self.object:set_callback(callback.death,nil)
+	object_binder.net_destroy(self)
+end
+
+function CDroneBinder:death_callback(obj,who)
+	self:RemoveMapSpot()
+	SendScriptCallback("drone_on_death",obj,who)
+end
+
+function CDroneBinder:net_save_relevant()
+	return true
+end
+
+function CDroneBinder:save(packet)
+	object_binder.save(self,packet)
+	set_save_marker(packet,"save",false,"physics_binder")
+	set_save_marker(packet,"save",true,"physics_binder")
+	
+	if (self.mem) then
+		self.mem.engine_on = self.car:IsActiveEngine()
+	end
+end
+
+function CDroneBinder:load(packet)
+	object_binder.load(self,packet)
+	set_save_marker(packet,"load",false,"physics_binder")
+	set_save_marker(packet,"load",true,"physics_binder")
+end
+
+function CDroneBinder:after_net_spawn()
+	if (self.mem) then
+		if (self.mem.engine_on) then
+			self.mem.engine_on = nil
+			self.car:StartEngine()
+		end
+	end
+	return true
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Registers
+------------------------------------------------------------------------------------------------------]]
+function on_game_start()
+	_G.DRONE_MGR = CDroneManager()
+end

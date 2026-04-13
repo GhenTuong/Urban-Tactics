@@ -45,16 +45,16 @@ cform						= skeleton
 class						= SCRPTCAR
 kind						= v_drone
 type						= fly
-use_action_hint				= drone_use_hint
-script_binding				= drone_bind.init
-on_before_hit				= drone_bind.on_before_hit
-on_before_use				= drone_bind.on_before_use
+use_action_hint				= drone_use_hint_pickup
+script_binding				= drone_gameplay.init
+on_before_hit				= drone_gameplay.on_before_hit
+on_before_use				= drone_gameplay.on_before_use
 
 [m_drone_item]:tch_quest
-use1_functor				= drone_item.drone_deploy_desc
-use1_action_functor			= drone_item.drone_deploy_func
-use2_functor				= drone_item.drone_detach_desc
-use2_action_functor			= drone_item.drone_detach_func
+use1_functor				= drone_gameplay.drone_deploy_desc
+use1_action_functor			= drone_gameplay.drone_deploy_func
+use2_functor				= drone_gameplay.drone_detach_desc
+use2_action_functor			= drone_gameplay.drone_detach_func
 
 ;----------------------------------------------------------------------------------------------------
 [handheld_drone]:m_drone_item
@@ -82,10 +82,7 @@ control_yaw_max				= 3.0
 control_pit_max				= 2.0
 control_rol_max				= 2.0
 fly_weight_min				= 20
-
-attachment_bone				= attach_bone
-attachment_data				= ied_remote_exp,ied_remote_rpg
-map_spot					= drone_map_spot
+attach_bone					= attach_bone
 
 ;----------------------------------------------------------------------------------------------------
 ;	Camera
@@ -150,7 +147,7 @@ use1_action_functor         = ied_gameplay.deploy_func
 [ied_remote_rpg]:rpg_new_blow,m_ied_remote_item_base
 visual						= dynamics\weapons\mine\ied_remote_rpg.ogf
 inv_name					= ied_remote_rpg_name
-inv_name_short				= ied_remote_rpg_name
+inv_name_short				= ied_remote_rpg_shrt
 description					= ied_remote_rpg_desc
 icons_texture				= ui\actor_items\ui_icon_ied_remote
 inv_grid_width				= 1
@@ -166,7 +163,7 @@ can_trade					= false
 [ied_remote_exp]:grenade_explosive_charge,m_ied_remote_item_base
 visual						= dynamics\weapons\mine\ied_remote_exp.ogf
 inv_name					= ied_remote_exp_name
-inv_name_short				= ied_remote_exp_name
+inv_name_short				= ied_remote_exp_shrt
 description					= ied_remote_exp_desc
 icons_texture				= ui\actor_items\ui_icon_ied_remote
 inv_grid_width				= 1

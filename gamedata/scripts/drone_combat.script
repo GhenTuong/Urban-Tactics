@@ -46,7 +46,7 @@ local DRONE_COMBAT_RANGE = math.pow(25,2)
 function best_enemy_drone(npc)
 	local o = nil
 	local d = DRONE_COMBAT_RANGE
-	for id,obj in pairs(db.drones) do
+	for id,obj in pairs(db.drone_objects) do
 		local dis = distance_xz_sqr(npc,obj)
 		if (obj:alive() and (d > dis)) then
 			local who = obj:get_car() and obj:get_car():Owner()
