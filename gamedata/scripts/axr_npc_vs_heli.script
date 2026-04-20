@@ -146,9 +146,18 @@ function evaluator_npc_vs_heli:evaluate()
 		return false
 	end 
 	
+---[[ #if MODED_EXE
+	if (npc:get_attached_vehicle()) then
+		return false
+	end
+	if not (self:OverrideCallback()) then
+		return false 
+	end
+--[[ #else
 	if not (best_heli(npc)) then 
 		return false 
 	end 
+-- #endif ]]
 	
 	return true
 end
@@ -215,20 +224,17 @@ function action_npc_vs_heli:execute()
 	--utils_data.debug_write(strformat("action_npc_vs_heli:execute start"))
 	action_base.execute(self)
 	
+---[[ #if MODED_EXE
+	if not (self:OverrideCallback()) then
+		return
+	end
+-- #endif ]]
+	
 	local npc = self.object
 	local enemy = best_heli(npc)
 	if not (enemy) then
 		return 
 	end
-	
----[[ GHENTUONG GT_urban_tactics
-	if (self.drone_execute and db.drones[enemy:id()]) then
-		return self:drone_execute(enemy)
-	end
-	if not (IsHelicopter(enemy)) then
-		return
-	end
---]]
 	
 	local heli = enemy:get_helicopter()
 	if not (heli) then 
@@ -460,3 +466,28 @@ function is_under_npc_vs_heli(npc)
 	local current_action_id = mgr:current_action_id()
 	return current_action_id == actid
 end
+
+---[[ #if MODED_EXE
+-- A hackly way to make this scheme supports more than just helicopters.
+AddScriptCallback("on_npc_vs_heli_eva")
+AddScriptCallback("on_npc_vs_heli_act")
+
+function evaluator_npc_vs_heli:OverrideCallback()
+	-- Set ret_value to true to make evaluator true.
+	-- Set mod_flags to an unique string to identify your mod in order to run action later.
+	local heli = best_heli(self.object)
+	self.ret_value = heli and true or false
+	self.mod_flags = nil
+	SendScriptCallback("on_npc_vs_heli_eva",self,heli)
+	self.st.mod_flags = self.mod_flags
+	return self.ret_value
+end
+
+function action_npc_vs_heli:OverrideCallback()
+	-- Set ret_value to false to ignore the original action.
+	-- In the callback, use self.st.mod_flags to check if your mod should run.
+	self.ret_value = true
+	SendScriptCallback("on_npc_vs_heli_act",self)
+	return self.ret_value
+end
+-- #endif ]]

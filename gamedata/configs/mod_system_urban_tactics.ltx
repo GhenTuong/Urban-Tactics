@@ -49,6 +49,7 @@ use_action_hint				= drone_use_hint_pickup
 script_binding				= drone_gameplay.init
 on_before_hit				= drone_gameplay.on_before_hit
 on_before_use				= drone_gameplay.on_before_use
+on_explode					= drone_gameplay.on_explode
 
 [m_drone_item]:tch_quest
 use1_functor				= drone_gameplay.drone_deploy_desc
@@ -58,7 +59,7 @@ use2_action_functor			= drone_gameplay.drone_detach_func
 
 ;----------------------------------------------------------------------------------------------------
 [handheld_drone]:m_drone_item
-visual						= dynamics\vehicles\drone\drone.ogf
+visual						= dynamics\vehicles\drone\handheld_drone.ogf
 inv_name					= handheld_drone_name
 inv_name_short				= handheld_drone_name
 description					= handheld_drone_desc
@@ -115,11 +116,13 @@ GroupControlSection			= spawn_group
 cform						= skeleton
 kind						= e_ied
 class						= S_EXPLO
+use_action_hint				= ied_remote_pickup
 script_binding				= ied_gameplay.init
+on_explode					= ied_gameplay.on_explode
+
 cost						= 0
 can_take					= true
 immunities_sect				= planted_mine_immunities
-use_action_hint				= ied_remote_pickup
 
 [m_ied_remote_item_base]:identity_immunities
 GroupControlSection			= spawn_group
@@ -142,6 +145,23 @@ can_take					= true
 
 use1_functor                = ied_gameplay.deploy_desc
 use1_action_functor         = ied_gameplay.deploy_func
+
+[prt_i_trigger_device]:tch_part
+visual						= dynamics\part\prt_i_plastic.ogf
+inv_name					= prt_i_trigger_device_name
+inv_name_short				= prt_i_trigger_device_name
+description					= prt_i_trigger_device_desc
+inv_grid_width				= 1
+inv_grid_height				= 1
+inv_grid_x					= 13
+inv_grid_y					= 46
+cost						= 144
+inv_weight					= 0.01
+attach_angle_offset			= -0.287979, 1.560923, 1.544060
+attach_position_offset		= 0.096910, -0.013594, 0.107925
+attach_bone_name			= bip01_r_hand
+auto_attach					= false
+repair_part_bonus			= 0.0
 
 ;----------------------------------------------------------------------------------------------------
 [ied_remote_rpg]:rpg_new_blow,m_ied_remote_item_base

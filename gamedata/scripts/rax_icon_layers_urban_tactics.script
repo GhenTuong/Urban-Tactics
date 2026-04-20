@@ -46,9 +46,9 @@ end
 
 
 --add layers to what gets updated
-local base_update = utils_ui.UICellItem.Update
+local base_update = nil
 
-function utils_ui.UICellItem:Update(obj)
+function utils_ui.UICellItem:Update_UT(obj)
 	obj = obj or (self.ID and level.object_by_id(self.ID))
 	if (self.showcase == 0) and (not obj) then
 		self:ResetToChild()
@@ -67,9 +67,9 @@ function utils_ui.UICellItem:Update(obj)
 end
 
 
-local base_layers = utils_ui.UICellItem.Add_Layers
+local base_layers = nil
 
-function utils_ui.UICellItem:Add_Layers(xml, obj, sec, clsid)
+function utils_ui.UICellItem:Add_Layers_UT(xml, obj, sec, clsid)
 	base_layers(self, xml, obj, sec, clsid)
 
 	local ii = 1
@@ -188,4 +188,13 @@ function add_texture_layer(self,ele, base, sec_m, tbl)
 	ele:SetWndPos(vector2():set( x_s + w_off , y_s + h_off ))
 	ele:SetWndSize(vector2():set( w_s , h_s ))
 	ele:Show(true)
+end
+
+function on_game_start()
+	if (rax_icon_layers == nil) then
+		base_update = utils_ui.UICellItem.Update
+		utils_ui.UICellItem.Update = utils_ui.UICellItem.Update_UT
+		base_layers = utils_ui.UICellItem.Add_Layers
+		utils_ui.UICellItem.Add_Layers = utils_ui.UICellItem.Add_Layers_UT
+	end
 end

@@ -255,6 +255,12 @@ function deploy_condition()
 	return true
 end
 
+function on_explode(obj)
+	if (obj:binded_object()) then
+		obj:binded_object():UpdateMapSpot(false)
+	end
+end
+
 --[[----------------------------------------------------------------------------------------------------
 	HUD
 ------------------------------------------------------------------------------------------------------]]
@@ -464,36 +470,6 @@ function CIedBinder:InitPosition()
 	end
 end
 
-function CIedBinder:AfterNetSpawnTimeEvent(oid)
-	local obj = URB_TAC:object_by_id(oid)
-	local mgr = obj and obj:binded_object()
-	if (mgr) then
-		mgr:AfterNetSpawn()
-	end
-	return true
-end
-
-function CIedBinder:AfterNetSpawn()
-	-- This binder net_spawn runs before object net_spawn so objects still haven't had physic shell yet.
-	if (self.mem and self.mem.fix) then
-		-- Physic shell should be available now but still check just in case.
-		if (self.object:get_physics_shell()) then
-			local ele = self.object:get_physics_shell():get_element_by_order(0)
-			if (ele:is_fixed() == false) then
-				ele:fix()
-			end
-		end
-		local pos = self:GetStoragePosition()
-		if (pos) then
-			self.object:force_set_position(pos)
-		end
-		local ang = self:GetStorageRotation()
-		if (ang) then
-			self.object:force_set_rotation(ang)
-		end
-	end
-end
-
 function CIedBinder:GetStoragePosition()
 	if (self.mem and self.mem.pos) then
 		local x = tonumber(self.mem.pos.x)
@@ -553,10 +529,27 @@ function CIedBinder:net_spawn(se_abstract)
 	end
 	db.add_obj(self.object)
 	add_ied(self.object)
+	self.object:set_callback(callback.net_spawn_after,self.net_spawn_after,self)
 	self:InitPosition()
 	self:UpdateMapSpot(true)
-	CreateTimeEvent(self.oid,"after_net_spawn",0,self.AfterNetSpawnTimeEvent,self,self.oid)
 	return true
+end
+
+function CIedBinder:net_spawn_after()
+	if (self.mem and self.mem.fix) then
+		-- Physic shell should be available now but still check just in case.
+		if (self.object:get_physics_shell():get_element_by_order(0):is_fixed() == false) then
+			self.object:get_physics_shell():get_element_by_order(0):fix()
+		end
+		local pos = self:GetStoragePosition()
+		if (pos) then
+			self.object:force_set_position(pos)
+		end
+		local ang = self:GetStorageRotation()
+		if (ang) then
+			self.object:force_set_rotation(ang)
+		end
+	end
 end
 
 function CIedBinder:net_destroy()
@@ -564,6 +557,7 @@ function CIedBinder:net_destroy()
 	
 	db.del_obj(self.object)
 	del_ied(self.object)
+	self.object:set_callback(callback.net_spawn_after,nil)
 	object_binder.net_destroy(self)
 end
 

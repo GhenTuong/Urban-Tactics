@@ -3,11 +3,9 @@
 	Discord: GhenTuong#1278
 	Twitter: https://twitter.com/GhenTuong
 ------------------------------------------------------------------------------------------------------]]
---[[
-Overrides:
-axr_npc_vs_heli.best_heli
-axr_npc_vs_heli.action_npc_vs_heli:execute()
---]]
+
+DRONE_COMBAT_RANGE = math.pow(25,2)
+DRONE_COMBAT_RANGE = 
 
 --[[----------------------------------------------------------------------------------------------------
 	Utilities
@@ -38,25 +36,20 @@ function validate(npc,vid)
 	return false
 end 
 
---[[----------------------------------------------------------------------------------------------------
-	Main
-------------------------------------------------------------------------------------------------------]]
-local DRONE_COMBAT_RANGE = math.pow(25,2)
-
 function best_enemy_drone(npc)
 	local o = nil
 	local d = DRONE_COMBAT_RANGE
-	for id,obj in pairs(db.drone_objects) do
+	for oid,obj in pairs(db.drone_objects) do
 		local dis = distance_xz_sqr(npc,obj)
-		if (obj:alive() and (d > dis)) then
-			local who = obj:get_car() and obj:get_car():Owner()
+		if (obj:alive() and obj:get_car():IsActiveEngine() and (d > dis)) then
 			---[[
 			if (true) then
 				o = obj
 				d = dis
 			end
 			--]]
-			if (who and npc:relation(who) == game_object.enemy) then
+			local mem = DRONE_MGR:StorageById(oid)
+			if (mem and mem.owner_actor) and (npc:relation(db.actor) == game_object.enemy) then
 				o = obj
 				d = dis
 			end
@@ -83,22 +76,37 @@ function can_npc_fight_drone(npc,obj)
 	return true
 end
 
-local best_heli = axr_npc_vs_heli.best_heli
-axr_npc_vs_heli.best_heli = function(npc)
-	local obj = best_enemy_drone(npc)
-	if (obj and can_npc_fight_drone(npc,obj)) then
-		return obj
+--[[----------------------------------------------------------------------------------------------------
+	Main
+------------------------------------------------------------------------------------------------------]]
+function on_npc_vs_heli_eva(self,heli)
+	if (self.mod_flags) then
+		return
 	end
-	return best_heli(npc)
+	
+	local obj = best_enemy_drone(self.object)
+	if (obj and can_npc_fight_drone(self.object,obj)) then
+		self.ret_value = true
+		self.mod_flags = URB_TAC:Name()
+	end
 end
 
-function axr_npc_vs_heli.action_npc_vs_heli:drone_execute(obj)
+function on_npc_vs_heli_act(self)
+	if (self.st.mod_flags ~= URB_TAC:Name()) then
+		return
+	end
+	self.ret_value = false
+
+	local obj = best_enemy_drone(self.object)
+	if not (obj) then
+		return
+	end
+	
 	local npc = self.object
 	if (npc:path_type() ~= game_object.level_path) then
 		npc:set_path_type(game_object.level_path)
 	end
 	
-	local t = time_global()
 	local see = firing_line_of_sight_clear(npc,obj)
 	local dir = vector():sub(obj:center(),utils_obj.safe_bone_pos(npc,"bip01_r_finger02"))
 	
@@ -110,28 +118,30 @@ function axr_npc_vs_heli.action_npc_vs_heli:drone_execute(obj)
 			axr_npc_vs_heli.lmove(npc,self.st.vid,self.st)
 			return
 		end
+		
 		-- Stay at cover.
 		local new_state = see and "threat_fire" or "threat"
 		state_mgr.set_state(npc,new_state,nil,nil,{look_dir = dir},{fast_set = true})
 		
-		self.st.__keep_point_until = self.st.__keep_point_until or (t + math.random(3000,8000))
-		if (self.st.__keep_point_until > t) then
+		self.st.__keep_point_until = self.st.__keep_point_until or (time_global() + math.random(3000,8000))
+		if (self.st.__keep_point_until > time_global()) then
 			return
 		end
 		-- Change cover.
 		self.st.__keep_point_until = nil
 		db.used_level_vertex_ids[self.st.vid] = nil
 		self.st.vid = nil
-	else
-		--[[
-		if (see) then
-			state_mgr.set_state(npc,"threat_fire",nil,nil,{look_dir = dir},{fast_set = true})
-			return
-		end
-		--]]
 	end
 	
 	if (self:try_go_cover(npc,obj:position(),10) == nil) then
 		self:try_to_strafe(npc)
 	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Registers
+------------------------------------------------------------------------------------------------------]]
+function on_game_start()
+	RegisterScriptCallback("on_npc_vs_heli_eva",on_npc_vs_heli_eva)
+	RegisterScriptCallback("on_npc_vs_heli_act",on_npc_vs_heli_act)
 end

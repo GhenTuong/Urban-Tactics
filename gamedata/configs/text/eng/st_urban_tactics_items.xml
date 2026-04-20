@@ -66,9 +66,9 @@
 	</string>
 	<string id="st_grenade_explosive_charge_descr">
 		<text>A demolition charge are used to destroy battlefield obstacles and equipment.\n \n
-		%c[d_purple] • %c[ui_gray_2] Blast power: %c[ui_gray_1]massive\n
-		%c[d_purple] • %c[ui_gray_2] Blast radius: %c[ui_gray_1]10 m\n
-		%c[d_purple] • %c[ui_gray_2] Explosion delay: %c[ui_gray_1]~5 seconds\n
+		%c[d_purple] • %c[ui_gray_2] blast power: %c[ui_gray_1]massive\n
+		%c[d_purple] • %c[ui_gray_2] blast radius: %c[ui_gray_1]10 m\n
+		%c[d_purple] • %c[ui_gray_2] explosion delay: %c[ui_gray_1]~5 seconds\n
 		%c[d_purple] • %c[ui_gray_2] fragments' radius: %c[ui_gray_1]20 m\n
 		%c[d_purple] • %c[ui_gray_2] av. number of fragments: %c[ui_gray_1]100 (shrapnel)\n
 		%c[d_purple] • %c[ui_gray_2] Cumbersome. Reduce throwing distance.</text>
@@ -88,6 +88,17 @@
 <!------------------------------------------------------------------------------------------------------
 	IED
 ------------------------------------------------------------------------------------------------------->
+	<string id="prt_i_trigger_device_name">
+		<text>Improvised explosive trigger</text>
+	</string>
+	<string id="prt_i_trigger_device_desc">
+		<text>An improvised explosive trigger made from scavenged communication devices and electrical components. It can be used as a component for improvised explosive recipes.\n \n
+		%c[ui_gray_3]PROPERTIES:\n
+		%c[d_blue] • %c[ui_gray_2] technological item\n
+		%c[d_purple] • %c[ui_gray_2] can be used to craft improvised explosive devices\n
+		</text>
+	</string>
+	
 	<string id="ied_remote_rpg_name">
 		<text>Improvised explosive device (based on PG-7V warhead)</text>
 	</string>
@@ -95,9 +106,9 @@
 		<text>IED (PG-7V warhead)</text>
 	</string>
 	<string id="ied_remote_rpg_desc">
-		<text>An improvised explosive device made from a PG-7V warhead and a cellphone. The impact fuse was removed and replaced with a cellphone for remote triggering.\n \n
+		<text>An improvised explosive device built from a PG-7V warhead and a modified cellphone trigger. The impact fuse was removed and replaced with a cellphone for remote detonation. This modification renders the warhead incompatible with rocket launcher, which greatly reduce its value. Traders no longer accept them for trading.\n \n
 		%c[ui_gray_3]PROPERTIES:\n
-		%c[d_blue] • %c[ui_gray_2] explosive\n
+		%c[d_blue] • %c[ui_gray_2] remote-controlled explosive\n
 		%c[d_blue] • %c[ui_gray_2] military item\n
 		%c[d_purple] • %c[ui_gray_2] triggering mechanism: %c[ui_gray_1]PDA remote triggering\n
 		%c[d_purple] • %c[ui_gray_2] blast power: %c[ui_gray_1]high\n
@@ -112,16 +123,13 @@
 		<text>IED (explosive charge)</text>
 	</string>
 	<string id="ied_remote_exp_desc">
-		<text>An improvised explosive device made from an explosive charge and a cellphone. The time fuse was removed and replaced with a cellphone for remote triggering.\n \n
+		<text>An improvised explosive device built from an explosive charge and a modified cellphone trigger. The time fuse was removed and replaced with a cellphone for remote detonation. The explosive charge lost its original intended purposes, which greatly reduce its value. Traders no longer accept them for trading.\n \n
 		%c[ui_gray_3]PROPERTIES:\n
-		%c[d_blue] • %c[ui_gray_2] explosive\n
+		%c[d_blue] • %c[ui_gray_2] remote-controlled explosive\n
 		%c[d_blue] • %c[ui_gray_2] military item\n
 		%c[d_purple] • %c[ui_gray_2] triggering mechanism: %c[ui_gray_1]PDA remote triggering\n
-		%c[d_purple] • %c[ui_gray_2] Blast power: %c[ui_gray_1]very high\n
-		%c[d_purple] • %c[ui_gray_2] Blast radius: %c[ui_gray_1]10 m\n
-		%c[d_purple] • %c[ui_gray_2] fragments' radius: %c[ui_gray_1]20 m\n
-		%c[d_purple] • %c[ui_gray_2] av. number of fragments: %c[ui_gray_1]100 (shrapnel)\n
-		%c[d_purple] • %c[ui_gray_2] explosion delay: %c[ui_gray_1]none\n
+		%c[d_purple] • %c[ui_gray_2] blast power: %c[ui_gray_1]very high\n
+		%c[d_purple] • %c[ui_gray_2] blast radius: %c[ui_gray_1]10 m\n
 		</text>
 	</string>
 	

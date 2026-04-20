@@ -51,7 +51,7 @@ function CDroneManager:__init()
 	end
 	
 	self.drone_script_callback_registered = false
-		
+	
 	RegisterScriptCallback("save_state",self)
 	RegisterScriptCallback("load_state",self)
 	RegisterScriptCallback("server_entity_on_register",self)
@@ -67,6 +67,12 @@ function CDroneManager:__init()
 	RegisterScriptCallback("GUI_on_hide",self)
 	RegisterScriptCallback("actor_on_net_destroy",self)
 	RegisterScriptCallback("ActorMenu_on_item_drag_drop",self)
+	
+	if (rax_icon_layers) then
+		rax_icon_layers.register("drone_icon_layer",drone_icon_layer)
+	else
+		rax_icon_layers_urban_tactics.register("drone_icon_layer",drone_icon_layer)
+	end
 end
 
 function CDroneManager:save_state(m_data)
@@ -260,6 +266,30 @@ function CDroneManager:ActorMenu_on_item_drag_drop(itm,obj,slot_from,slot_next)
 	end
 end
 
+local drone_icon_scale = 0.5
+
+function drone_icon_layer(cell,obj,sec)
+	if not (cell.showcase == 0) then
+		return
+	end
+	if not (DRONE_MGR:ItemToObject(sec)) then
+		return
+	end
+	local tmp = DRONE_MGR:GetAttachSection(obj:id())
+	if not (tmp) then
+		return
+	end
+	
+	local obj_axis = utils_xml.get_item_axis(sec)
+	local itm_axis = utils_xml.get_item_axis(tmp)
+	return {
+		icon_layer = tmp,
+		icon_layer_x = 0,
+		icon_layer_y = obj_axis.h / drone_icon_scale - itm_axis.h,
+		icon_layer_scale = drone_icon_scale,
+	}
+end
+
 --------------------------------------------------------------------------------------------------------
 --[[
 local DRONE_CONTROLLER_MAX_RANGE = 200
@@ -343,6 +373,12 @@ function pick_up_time_event(oid)
 		news_manager.relocate_item(db.actor,"in",sec)
 	end
 	return true
+end
+
+function on_explode(obj)
+	if (obj:binded_object()) then
+		obj:binded_object():UpdateMapSpot(false)
+	end
 end
 
 --[[----------------------------------------------------------------------------------------------------
@@ -730,16 +766,26 @@ function CDroneBinder:net_spawn(se_abstract)
 	if not (object_binder.net_spawn(self,se_abstract)) then
 		return false
 	end
+	
 	db.add_obj(self.object)
 	add_drone(self.object)
 	self.object:set_callback(callback.death,self.death_callback,self)
+	self.object:set_callback(callback.net_spawn_after,self.net_spawn_after,self)
 	
 	self:PayloadUpdate()
 	self:UpdateMapSpot(true)
 	
-	CreateTimeEvent(self.oid,"after_net_spawn",0,self.after_net_spawn,self)
 	SendScriptCallback("drone_on_net",self.object,true)
 	return true
+end
+
+function CDroneBinder:net_spawn_after()
+	if (self.mem) then
+		if (self.mem.engine_on) then
+			self.mem.engine_on = nil
+			self.car:StartEngine()
+		end
+	end
 end
 
 function CDroneBinder:net_destroy()
@@ -749,6 +795,7 @@ function CDroneBinder:net_destroy()
 	db.del_obj(self.object)
 	del_drone(self.object)
 	self.object:set_callback(callback.death,nil)
+	self.object:set_callback(callback.net_spawn_after,nil)
 	object_binder.net_destroy(self)
 end
 
@@ -775,16 +822,6 @@ function CDroneBinder:load(packet)
 	object_binder.load(self,packet)
 	set_save_marker(packet,"load",false,"physics_binder")
 	set_save_marker(packet,"load",true,"physics_binder")
-end
-
-function CDroneBinder:after_net_spawn()
-	if (self.mem) then
-		if (self.mem.engine_on) then
-			self.mem.engine_on = nil
-			self.car:StartEngine()
-		end
-	end
-	return true
 end
 
 --[[----------------------------------------------------------------------------------------------------

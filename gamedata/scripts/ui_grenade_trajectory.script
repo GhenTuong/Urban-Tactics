@@ -101,7 +101,8 @@ function CGrenadeTrajectory:__init() super()
 		[CWeapon.eSwitchMode]			= true,
 	}
 	
-	self.position_max = 40
+	self.index_min = 2
+	self.index_max = 60
 	
 	self.particles_sec = [[_samples_particles_\grenade_throw_trajectory]]
 	self.particles = nil
@@ -148,12 +149,12 @@ function CGrenadeTrajectory:TrajectoryCalculate(pos,vel)
 	end
 	
 	local tmp = {}
-	for i=1,self.position_max do
+	for i=self.index_min,self.index_max do
 		tmp[#tmp+1] = self:TrajectoryPosition(pos,vel,0.05 * i)
 	end
 	self.particles_pos = tmp
 	
-	for i=1,self.position_max do
+	for i=self.index_min,self.index_max do
 		local src = tmp[i]
 		local dst = tmp[i+1]
 		if not (src and dst) then
@@ -164,7 +165,7 @@ function CGrenadeTrajectory:TrajectoryCalculate(pos,vel)
 		local ray = ray_pick(src,dir,num,2,db.actor)
 		if (ray:query()) then
 			self.particles_idx = i
-			self.indicator_pos = vector():mad(src,dir,ray:get_distance()-0.5)
+			self.indicator_pos = vector():mad(src,dir,ray:get_distance() - 0.5)
 			break
 		end
 	end
@@ -173,14 +174,13 @@ end
 function CGrenadeTrajectory:TrajectoryDraw()
 	if (self.particles == nil) then
 		self.particles = {}
-		for i=2,self.position_max do
+		for i=self.index_min,self.index_max do
 			self.particles[i] = particles_object(self.particles_sec)
 		end
 	end
-	local idx = self.particles_idx
 	for i,k in pairs(self.particles) do
 		local vec = self.particles_pos and self.particles_pos[i]
-		if (vec) and (idx == nil or idx >= i) then
+		if (vec) and (self.particles_idx == nil or i <= self.particles_idx) then
 			k:set_position(vec)
 			if (k:playing() == false) then
 				k:play()
@@ -209,13 +209,11 @@ end
 
 function CGrenadeTrajectory:Hide()
 	if (self.particles) then
-		for i=2,self.position_max do
-			if (self.particles[i]) then
-				if (self.particles[i]:playing()) then
-					self.particles[i]:stop()
-				end
-				self.particles[i] = nil
+		for i,k in pairs(self.particles) do
+			if (k:playing()) then
+				k:stop()
 			end
+			self.particles[i] = nil
 		end
 		self.particles = nil
 	end
