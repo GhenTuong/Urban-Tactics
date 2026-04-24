@@ -167,6 +167,17 @@ function CUrbanTacticsManager:smart_by_level(lvl)
 	end
 end
 
+function CUrbanTacticsManager:vector_to_table(v)
+	if (v and tonumber(v.x) and tonumber(v.y) and tonumber(v.z)) then
+		return {x = v.x,y = v.y,z = v.z}
+	end
+end
+
+function CUrbanTacticsManager:table_to_vector(v)
+	if (v and tonumber(v.x) and tonumber(v.y) and tonumber(v.z)) then
+		return vector():set(tonumber(v.x),tonumber(v.y),tonumber(v.z))
+	end
+end
 
 --[[----------------------------------------------------------------------------------------------------
 	Registers

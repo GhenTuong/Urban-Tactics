@@ -15,11 +15,11 @@ local VEC_Y = vector():set(0,1,0)
 
 db.ied_objects = {}
 
-function add_ied(obj)
+function add_object(obj)
 	db.ied_objects[obj:id()] = obj
 end
 
-function del_ied(obj)
+function del_object(obj)
 	db.ied_objects[obj:id()] = nil
 end
 
@@ -457,19 +457,6 @@ function CIedBinder:update(delta)
 	object_binder.update(self,delta)
 end
 
-function CIedBinder:InitPosition()
-	local tmp = IED_MGR:Initial()[self.oid]
-	if (tmp) then
-		if (tmp.pos) then
-			self.object:force_set_position(tmp.pos)
-		end
-		if (tmp.ang) then
-			self.object:force_set_rotation(tmp.ang)
-		end
-		IED_MGR:Initial()[self.oid] = nil
-	end
-end
-
 function CIedBinder:GetStoragePosition()
 	if (self.mem and self.mem.pos) then
 		local x = tonumber(self.mem.pos.x)
@@ -528,26 +515,40 @@ function CIedBinder:net_spawn(se_abstract)
 		return false
 	end
 	db.add_obj(self.object)
-	add_ied(self.object)
+	add_object(self.object)
 	self.object:set_callback(callback.net_spawn_after,self.net_spawn_after,self)
-	self:InitPosition()
 	self:UpdateMapSpot(true)
+	
+	local tmp = IED_MGR:Initial()[self.oid]
+	if (tmp) then
+		local pos = URB_TAC:table_to_vector(tmp.pos)
+		if (pos) then
+			self.object:force_set_position(pos)
+		end
+		local ang = URB_TAC:table_to_vector(tmp.ang)
+		if (ang) then
+			self.object:force_set_rotation(ang)
+		end
+		IED_MGR:Initial()[self.oid] = nil
+	end
+	
 	return true
 end
 
 function CIedBinder:net_spawn_after()
-	if (self.mem and self.mem.fix) then
-		-- Physic shell should be available now but still check just in case.
-		if (self.object:get_physics_shell():get_element_by_order(0):is_fixed() == false) then
-			self.object:get_physics_shell():get_element_by_order(0):fix()
-		end
-		local pos = self:GetStoragePosition()
-		if (pos) then
-			self.object:force_set_position(pos)
-		end
-		local ang = self:GetStorageRotation()
-		if (ang) then
-			self.object:force_set_rotation(ang)
+	if (self.mem) then
+		if (self.mem.fix) then
+			if (self.object:get_physics_shell():get_element_by_order(0):is_fixed() == false) then
+				self.object:get_physics_shell():get_element_by_order(0):fix()
+			end
+			local pos = self:GetStoragePosition()
+			if (pos) then
+				self.object:force_set_position(pos)
+			end
+			local ang = self:GetStorageRotation()
+			if (ang) then
+				self.object:force_set_rotation(ang)
+			end
 		end
 	end
 end
@@ -556,7 +557,7 @@ function CIedBinder:net_destroy()
 	self:UpdateMapSpot(false)
 	
 	db.del_obj(self.object)
-	del_ied(self.object)
+	del_object(self.object)
 	self.object:set_callback(callback.net_spawn_after,nil)
 	object_binder.net_destroy(self)
 end

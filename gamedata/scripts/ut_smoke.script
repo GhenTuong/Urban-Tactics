@@ -10,26 +10,34 @@ VISIBILITY_REDUCE_COEFFICIENT = 0.1
 	Main
 ------------------------------------------------------------------------------------------------------]]
 local SMOKE_STORAGE = {}
+local SMOKE_INITIAL = {}
 
-smoke_objects = {}
+db.smoke_objects = {}
 
-function add_binded_object(obj)
-	smoke_objects[obj:id()] = obj
+function add_object(obj)
+	db.smoke_objects[obj:id()] = obj
 end
 
-function del_binded_object(obj)
-	smoke_objects[obj:id()] = nil
+function del_object(obj)
+	db.smoke_objects[obj:id()] = nil
 end
 
 function on_explode(obj)
 	local sec = SYS_GetParam(0,obj:section(),"on_explode_spawn")
 	if (sec and ini_sys:section_exist(sec)) then
-		local pos = obj:center():add(vector():set(0,0.1,0))
+		local xfm = obj:xform()
+		local pos = vector():set(xfm.c)
+		local ang = xfm:getHPB()
 		local vid = obj:level_vertex_id()
 		local gid = obj:game_vertex_id()
 		local se = alife_create(sec,pos,vid,gid)
-		if (se) then
-			se.angle = obj:angle()
+		se.angle = vector():set(ang.y,ang.x,ang.z)
+		if (obj:get_physics_shell()) then
+			local vel = vector()
+			local ang = vector()
+			obj:get_physics_shell():get_linear_vel(vel)
+			obj:get_physics_shell():get_angular_vel(ang)
+			SMOKE_INITIAL[se.id] = {vel = vel,ang = ang}
 		end
 	end
 end
@@ -141,7 +149,7 @@ function get_visible_value(npc,who,time_delta,time_quant,luminocity,velocity_fac
 		return res
 	end
 	
-	for _,obj in pairs(smoke_objects) do
+	for _,obj in pairs(db.smoke_objects) do
 		if (is_smoke_conceal_target(obj,npc,who)) then
 			res = -VISIBILITY_REDUCE_COEFFICIENT
 			--URB_TAC:DEBUG("Smoke [%s] -> [%s] X [%s]",npc:name(),who:name(),obj:name())
@@ -205,9 +213,7 @@ function CSmokeBinder:__init(obj) super(obj)
 	self.center		= SYS_GetParam(2,section,"center") or 0
 	self.radius		= SYS_GetParam(2,section,"radius") or 4
 	self.height		= SYS_GetParam(2,section,"height") or 4
-	
-	self.physic		= false
-	
+		
 	self.fc_delta = nil
 	self.fc_timer = nil
 	self.fc_delay = 50
@@ -245,13 +251,6 @@ function CSmokeBinder:update(delta)
 		SMOKE_STORAGE[self.oid] = nil
 		self:Destroy()
 		return
-	end
-	
-	if (self.physic ~= true) then
-		if (self.object:get_physics_shell()) then
-			self.object:get_physics_shell():apply_force(0,0.01,0)
-			self.physic = true
-		end
 	end
 	
 	--URB_TAC:DEBUG("[%s]:Update() %s",self.object:name(),SMOKE_STORAGE[self.oid])
@@ -336,14 +335,32 @@ function CSmokeBinder:net_spawn(se_abstract)
 		return false
 	end
 	db.add_obj(self.object)
-	add_binded_object(self.object)
+	add_object(self.object)
+	self.object:set_callback(callback.net_spawn_after,self.net_spawn_after,self)
 	return true
 end
 
 function CSmokeBinder:net_destroy()
 	db.del_obj(self.object)
-	del_binded_object(self.object)
+	del_object(self.object)
+	self.object:set_callback(callback.net_spawn_after,nil)
 	object_binder.net_destroy(self)
+end
+
+function CSmokeBinder:net_spawn_after()
+	self.object:get_physics_shell():apply_force(0,0.01,0)
+	
+	local mem = SMOKE_INITIAL[self.object:id()]
+	local vel = mem and URB_TAC:table_to_vector(mem.vel)
+	local ang = mem and URB_TAC:table_to_vector(mem.ang)
+	if (vel) then
+		self.object:get_physics_shell():set_linear_vel(vel)
+	end
+	if (ang) then
+		self.object:get_physics_shell():set_angular_vel(ang)
+	end
+	
+	SMOKE_INITIAL[self.object:id()] = nil
 end
 
 function CSmokeBinder:net_save_relevant()

@@ -16,11 +16,11 @@ KEY_DETONATE = KEY_DETONATE_DEF
 
 db.drone_objects = {}
 
-function add_drone(obj)
+function add_object(obj)
 	db.drone_objects[obj:id()] = obj
 end
 
-function del_drone(obj)
+function del_object(obj)
 	db.drone_objects[obj:id()] = nil
 end
 
@@ -768,12 +768,12 @@ function CDroneBinder:net_spawn(se_abstract)
 	end
 	
 	db.add_obj(self.object)
-	add_drone(self.object)
+	add_object(self.object)
 	self.object:set_callback(callback.death,self.death_callback,self)
 	self.object:set_callback(callback.net_spawn_after,self.net_spawn_after,self)
+	self:UpdateMapSpot(true)
 	
 	self:PayloadUpdate()
-	self:UpdateMapSpot(true)
 	
 	SendScriptCallback("drone_on_net",self.object,true)
 	return true
@@ -793,7 +793,7 @@ function CDroneBinder:net_destroy()
 	
 	SendScriptCallback("drone_on_net",self.object,false)
 	db.del_obj(self.object)
-	del_drone(self.object)
+	del_object(self.object)
 	self.object:set_callback(callback.death,nil)
 	self.object:set_callback(callback.net_spawn_after,nil)
 	object_binder.net_destroy(self)
