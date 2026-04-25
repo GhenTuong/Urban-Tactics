@@ -98,9 +98,7 @@ function CFlareBinder:__init(obj) super(obj)
 	self.light.enabled				= false
 	self.light.lanim				= "koster"
 	self.light.lanim_brightness		= self.brightness
-	
-	self.set_force	= nil
-	
+		
 	self.fc_delta = nil
 	self.fc_timer = nil
 	self.fc_delay = 50
@@ -138,13 +136,6 @@ function CFlareBinder:update(delta)
 		FLARE_STORAGE[self.oid] = nil
 		self:Destroy()
 		return
-	end
-	
-	if (self.set_force ~= true) then
-		self.set_force = true
-		local mass = self.object:mass()
-		local grav = level.physics_world():gravity()
-		self.object:set_const_force(VEC_Y,(mass * (grav - 1.5)),100000)
 	end
 	
 	--DEBUG("[%s]:Update() %s",self.object:name(),FLARE_STORAGE[self.oid])
@@ -228,13 +219,22 @@ function CFlareBinder:net_spawn(se_abstract)
 	end
 	db.add_obj(self.object)
 	add_object(self.object)
+	self.object:set_callback(callback.net_spawn_after,self.net_spawn_after,self)
 	return true
 end
 
 function CFlareBinder:net_destroy()
 	db.del_obj(self.object)
 	del_object(self.object)
+	self.object:set_callback(callback.net_spawn_after,nil)
 	object_binder.net_destroy(self)
+end
+
+function CFlareBinder:net_spawn_after()
+	self.object:get_physics_shell():apply_force(0,0.01,0)
+	local mass = self.object:mass()
+	local grav = level.physics_world():gravity()
+	self.object:set_const_force(vector():set(0,1,0),(mass * (grav - 1.5)),1000 * 1000)
 end
 
 function CFlareBinder:net_save_relevant()
