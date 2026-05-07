@@ -11,8 +11,8 @@ function on_option_change()
 	if (ui_mcm) then
 		ut_grenade_trajectory.TRAJECTORY_GRD = ui_mcm.get("gt/urban_tactics/trajectory_grd")
 		ut_grenade_trajectory.TRAJECTORY_LCH = ui_mcm.get("gt/urban_tactics/trajectory_lch")
-		ut_ied.KEY_DETONATE = ui_mcm.get("gt/urban_tactics/key_ied_detonate") or ut_ied.KEY_DETONATE_DEF
-		ut_drone.KEY_DETONATE = ui_mcm.get("gt/urban_tactics/key_drone_detonate") or ut_drone.KEY_DETONATE_DEF
+		urban_tactics_ied.KEY_DETONATE = ui_mcm.get("gt/urban_tactics/key_ied_detonate") or urban_tactics_ied.KEY_DETONATE_DEF
+		urban_tactics_drone.KEY_DETONATE = ui_mcm.get("gt/urban_tactics/key_drone_detonate") or urban_tactics_drone.KEY_DETONATE_DEF
 	end
 end
 
@@ -31,12 +31,12 @@ function on_mcm_load()
 			
 			{id = "ied_name",type = "title",text = "ui_mcm_gt_urban_tactics_ied_name"},
 			{id = "ied_desc",type = "desc",text = "ui_mcm_gt_urban_tactics_ied_desc"},
-			{id = "key_ied_detonate",type = "key_bind",val = 2,def = ut_ied.KEY_DETONATE_DEF},
+			{id = "key_ied_detonate",type = "key_bind",val = 2,def = urban_tactics_ied.KEY_DETONATE_DEF},
 			{id = "ied_line",type = "line"},
 			
 			{id = "drone_name",type = "title",text = "ui_mcm_gt_urban_tactics_drone_name"},
 			{id = "drone_desc",type = "desc",text = "ui_mcm_gt_urban_tactics_drone_desc"},
-			{id = "key_drone_detonate",type = "key_bind",val = 2,def = ut_drone.KEY_DETONATE_DEF},
+			{id = "key_drone_detonate",type = "key_bind",val = 2,def = urban_tactics_drone.KEY_DETONATE_DEF},
 			{id = "drone_line",type = "line"},
 		}
 	}, "gt"

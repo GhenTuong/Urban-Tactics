@@ -74,17 +74,6 @@
 		%c[d_purple] • %c[ui_gray_2] Cumbersome. Reduce throwing distance.</text>
 	</string>
 	
-	<string id="st_grenade_flame">
-		<text>Incendiary bottle</text>
-	</string>
-	<string id="st_grenade_flame_descr">
-		<text>An incendiary bottle is an improvised hand-thrown incendiary weapon. When thrown, the frangible bottle shatters on impact. This ignites the flammable substances contained in the bottle and spreads flames as the fuel burns.\n \n
-		%c[d_purple] • %c[ui_gray_2] Flame damage: %c[ui_gray_1]low\n
-		%c[d_purple] • %c[ui_gray_2] Flame radius: %c[ui_gray_1]6 m\n
-		%c[d_purple] • %c[ui_gray_2] Burn duration: %c[ui_gray_1]60 seconds\n
-		%c[d_purple] • %c[ui_gray_2] Not explode when hitting water surface.</text>
-	</string>
-	
 <!------------------------------------------------------------------------------------------------------
 	IED
 ------------------------------------------------------------------------------------------------------->
@@ -95,7 +84,7 @@
 		<text>An improvised explosive trigger made from scavenged communication devices and electrical components. It can be used as a component for improvised explosive recipes.\n \n
 		%c[ui_gray_3]PROPERTIES:\n
 		%c[d_blue] • %c[ui_gray_2] technological item\n
-		%c[d_purple] • %c[ui_gray_2] can be used to craft improvised explosive devices\n
+		%c[d_purple] • %c[ui_gray_2] can be used to create improvised explosive devices\n
 		</text>
 	</string>
 	
@@ -141,9 +130,11 @@
 	</string>
 	<string id="handheld_drone_desc">
 		<text>An unmanned aerial vehicle small enough to be man-portable. The drone is very maneuverable, can fit through tight spaces, and provides an edge view over a wide area. It is suitable for reconnaissance purposes.\n \n
-		%c[d_purple] • %c[ui_gray_2] Drones on the field will be lost if the owner leaves the current area.\n
-		%c[d_purple] • %c[ui_gray_2] Controlled by PDA.\n
-		%c[d_purple] • %c[ui_gray_2] Can attach remote-controlled explosives.\n
+		%c[d_blue] • %c[ui_gray_2] Controlled by PDA.\n
+		%c[d_blue] • %c[ui_gray_2] Can attach remote-controlled explosives.\n
+		%c[d_blue] • %c[ui_gray_2] Drones on the field will be lost if the owner leaves the current area.\n
+		%c[d_purple] • %c[ui_gray_2] operational range: %c[ui_gray_1]~300 meters\n
+		%c[d_purple] • %c[ui_gray_2] full battery flight time: %c[ui_gray_1]~40 minutes\n
 		</text>
 	</string>
 </string_table>

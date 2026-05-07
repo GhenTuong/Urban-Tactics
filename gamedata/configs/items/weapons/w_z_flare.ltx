@@ -77,12 +77,12 @@ force_explode_time		= 3000
 
 [wpn_fake_missile_flare_vgop]:wpn_fake_missile_flare_base
 visual					= dynamics\weapons\wpn_ammo\ammo_vgop.ogf
-on_explode				= bind_flare.on_explode
+on_explode				= urban_tactics_flare.on_explode
 on_explode_spawn		= flare_object_grenade_vgop
 
 [wpn_fake_missile_flare_m662]:wpn_fake_missile_flare_base
 visual					= dynamics\weapons\wpn_ammo\ammo_m662.ogf
-on_explode				= bind_flare.on_explode
+on_explode				= urban_tactics_flare.on_explode
 on_explode_spawn		= flare_object_grenade_m662
 
 ;====================================================================================================
@@ -92,7 +92,7 @@ on_explode_spawn		= flare_object_grenade_m662
 GroupControlSection		= spawn_group
 class					= O_DSTR_S
 remove_time				= 0
-script_binding			= bind_flare.init
+script_binding			= urban_tactics_flare.init
 visual					= dynamics\light\light_signal.ogf
 
 range					= 100

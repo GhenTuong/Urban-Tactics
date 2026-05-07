@@ -46,16 +46,16 @@ class						= SCRPTCAR
 kind						= v_drone
 type						= fly
 use_action_hint				= drone_use_hint_pickup
-script_binding				= ut_drone.init
-on_before_hit				= ut_drone.on_before_hit
-on_before_use				= ut_drone.on_before_use
-on_explode					= ut_drone.on_explode
+script_binding				= urban_tactics_drone.init
+on_before_hit				= urban_tactics_drone.on_before_hit
+on_before_use				= urban_tactics_drone.on_before_use
+on_explode					= urban_tactics_drone.on_explode
 
-[m_drone_item]:tch_quest
-use1_functor				= ut_drone.drone_deploy_desc
-use1_action_functor			= ut_drone.drone_deploy_func
-use2_functor				= ut_drone.drone_detach_desc
-use2_action_functor			= ut_drone.drone_detach_func
+[m_drone_item]:identity_immunities,tch_device
+use1_functor				= urban_tactics_drone.drone_deploy_desc
+use1_action_functor			= urban_tactics_drone.drone_deploy_func
+use3_functor				= urban_tactics_drone.drone_detach_desc
+use3_action_functor			= urban_tactics_drone.drone_detach_func
 
 ;----------------------------------------------------------------------------------------------------
 [handheld_drone]:m_drone_item
@@ -68,7 +68,7 @@ inv_grid_width				= 3
 inv_grid_height				= 2
 inv_grid_x					= 0
 inv_grid_y					= 0
-inv_weight					= 5.0
+inv_weight					= 2.0
 attach_angle_offset			= 0.0,0.0,0.0
 attach_position_offset		= 0.0,0.0,0.0
 attach_bone_name			= bip01_l_hand
@@ -84,6 +84,9 @@ control_pit_max				= 2.0
 control_rol_max				= 2.0
 fly_weight_min				= 20
 attach_bone					= attach_bone
+power_cons					= 0.000416 ;40 minutes
+power_crit					= 0.05
+sig_radius					= 30
 
 ;----------------------------------------------------------------------------------------------------
 ;	Camera
@@ -117,8 +120,8 @@ cform						= skeleton
 kind						= e_ied
 class						= S_EXPLO
 use_action_hint				= ied_remote_pickup
-script_binding				= ut_ied.init
-on_explode					= ut_ied.on_explode
+script_binding				= urban_tactics_ied.init
+on_explode					= urban_tactics_ied.on_explode
 
 cost						= 0
 can_take					= true
@@ -143,8 +146,8 @@ eat_portions_num			= 1
 wounds_heal_perc			= 0
 can_take					= true
 
-use1_functor                = ut_ied.deploy_desc
-use1_action_functor         = ut_ied.deploy_func
+use1_functor                = urban_tactics_ied.deploy_desc
+use1_action_functor         = urban_tactics_ied.deploy_func
 
 [prt_i_trigger_device]:tch_part
 visual						= dynamics\part\prt_i_plastic.ogf

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<w>
+	<hud x="512" y="384" width="1024" height="768" stretch="1" alignment="c">
+		<texture>ui_crosshair_drone</texture>
+	</hud>
+	
+	<info x="512" y="160" width="196" height="44" stretch="1">
+		<texture>ui_drone_hud_dialog</texture>
+		<dialog x="8" y="8">
+			<signal_img x="0" y="0" width="48.0" height="28.0" mode="back" min="0" max="5" snap_no_delay="1">
+				<progress stretch="1">
+					<texture>ui_drone_hud_signal</texture>
+				</progress>
+			</signal_img>
+			<signal_bar x="0" y="0" width="48.0" height="28.0" mode="horz" min="0" max="5" snap_no_delay="1">
+				<progress stretch="1">
+					<texture>ui_drone_hud_signal</texture>
+				</progress>
+			</signal_bar>
+			
+			<battery_txt x="60" y="0" width="56.0" height="28.0" stretch="1">
+				<text font="letterica25" align="r" vert_align="b" complex_mode="1"/>
+			</battery_txt>
+			<battery_img x="120" y="0" width="62.5" height="28.0" stretch="1">
+				<texture>ui_drone_hud_battery_img</texture>
+			</battery_img>
+			<battery_bar x="124.25" y="4.25" width="50.5" height="20.0" mode="horz" min="0" max="100" snap_no_delay="1">
+				<progress stretch="1">
+					<texture>ui_drone_hud_battery_bar</texture>
+				</progress>
+			</battery_bar>
+		</dialog>
+	</info>
+</w>

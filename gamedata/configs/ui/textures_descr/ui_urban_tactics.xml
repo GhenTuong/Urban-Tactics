@@ -1,4 +1,15 @@
 <w>
+	<file name="ui\urban_tactics\ui_crosshair_drone">
+	    <texture id="ui_crosshair_drone" x="0" y="128" width="1024" height="768" />
+	</file>
+	
+	<file name="ui\urban_tactics\ui_drone_hud_icons">
+	    <texture id="ui_drone_hud_battery_img" x="0" y="0" width="250" height="112" />
+	    <texture id="ui_drone_hud_battery_bar" x="0" y="120" width="202" height="80" />
+	    <texture id="ui_drone_hud_signal" x="300" y="0" width="192" height="112" />
+	    <texture id="ui_drone_hud_dialog" x="300" y="120" width="196" height="44" />
+	</file>
+	
 	<file name="ui\urban_tactics\ui_drone_icon">
 	    <texture id="ui_drone_icon" x="15" y="15" width="97" height="97" />
 	</file>
