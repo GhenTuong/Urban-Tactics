@@ -4,9 +4,9 @@
 		<texture>ui_crosshair_drone</texture>
 	</hud>
 	
-	<info x="512" y="160" width="196" height="44" stretch="1">
+	<status x="512" y="128" width="256" height="44" stretch="1" alignment="c">
 		<texture>ui_drone_hud_dialog</texture>
-		<dialog x="8" y="8">
+		<dialog x="128" y="22" width="182.5" height="28.0" stretch="1" alignment="c">
 			<signal_img x="0" y="0" width="48.0" height="28.0" mode="back" min="0" max="5" snap_no_delay="1">
 				<progress stretch="1">
 					<texture>ui_drone_hud_signal</texture>
@@ -30,5 +30,5 @@
 				</progress>
 			</battery_bar>
 		</dialog>
-	</info>
+	</status>
 </w>

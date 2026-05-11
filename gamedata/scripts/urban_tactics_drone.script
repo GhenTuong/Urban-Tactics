@@ -646,35 +646,40 @@ function UICamfpv:__init() super()
 	self.xml = CScriptXmlInit()
 	self.xml:ParseFile("ui_drone_camfpv.xml")
 	
+	self.CLR_G = utils_xml.get_color("d_green",true)
+	self.CLR_Y = utils_xml.get_color("pda_yellow",true)
+	self.CLR_R = utils_xml.get_color("d_red",true)
+	self.INV_Y = vector():set(0,1,0):invert()
+	
+	self.CLR_0 = GetARGB(255,250,250,250)
+	self.CLR_1 = GetARGB(255,0,0,0)
+	
 	self.hud = self.xml:InitStatic("hud",self)
 	self:ApplyScreenRatio(self.hud)
 	
-	self.info = self.xml:InitStatic("info",self)
-	self:ApplyScreenRatio(self.info,false)
-	self.info:SetTextureColor(GetARGB(128,0,0,0))
+	self.status = self.xml:InitStatic("status",self)
+	self:ApplyScreenRatio(self.status,false)
+	self.status:SetTextureColor(GetARGB(128,0,0,0))
 	
-	self.dialog = self.xml:InitStatic("info:dialog",self.info)
+	self.dialog = self.xml:InitStatic("status:dialog",self.status)
 	self:ApplyScreenRatio(self.dialog,true)
 	
-	self.sig_img = self.xml:InitStatic("info:dialog:signal_img",self.dialog)
-	self.sig_bar = self.xml:InitProgressBar("info:dialog:signal_bar",self.dialog)
+	self.sig_img = self.xml:InitProgressBar("status:dialog:signal_img",self.dialog)
+	self.sig_bar = self.xml:InitProgressBar("status:dialog:signal_bar",self.dialog)
 	self:ApplyScreenRatio(self.sig_img,true)
 	self:ApplyScreenRatio(self.sig_bar,true)
+	self:ApplyScreenRatio(self.sig_img:GetProgressStatic(),true)
 	self:ApplyScreenRatio(self.sig_bar:GetProgressStatic(),true)
-	self.sig_img:SetTextureColor(utils_xml.get_color("ui_gray_1",true))
+	self.sig_img:SetColor(utils_xml.get_color("ui_gray_1",true))
 	self.sig_max = math.floor(self.sig_bar:GetRange_max())
 	
-	self.btr_txt = self.xml:InitTextWnd("info:dialog:battery_txt",self.dialog)
-	self.btr_img = self.xml:InitStatic("info:dialog:battery_img",self.dialog)
-	self.btr_bar = self.xml:InitProgressBar("info:dialog:battery_bar",self.dialog)
+	self.btr_txt = self.xml:InitTextWnd("status:dialog:battery_txt",self.dialog)
+	self.btr_img = self.xml:InitStatic("status:dialog:battery_img",self.dialog)
+	self.btr_bar = self.xml:InitProgressBar("status:dialog:battery_bar",self.dialog)
 	self:ApplyScreenRatio(self.btr_txt,true)
 	self:ApplyScreenRatio(self.btr_img,true)
 	self:ApplyScreenRatio(self.btr_bar,true)
 	self:ApplyScreenRatio(self.btr_bar:GetProgressStatic(),true)
-	
-	self.CLR_G = utils_xml.get_color("d_green",true)
-	self.CLR_Y = utils_xml.get_color("pda_yellow",true)
-	self.CLR_R = utils_xml.get_color("d_red",true)
 end
 
 function UICamfpv:__finalize()
@@ -695,23 +700,14 @@ function UICamfpv:Update()
 	end
 	self:Show(true)
 	
-	self:UpdateInfo()
-end
-
-function UICamfpv:UpdateInfo()
+	-- Signal.
 	do
 		local num = self:SignalPower()
-		local clr = self:SignalColor(num)
+		self.sig_img:SetProgressPos(self.sig_max - num)
 		self.sig_bar:SetProgressPos(num)
-		if (self.sig_clr ~= clr) then
-			self.sig_clr = clr
-			self.sig_bar:GetProgressStatic():SetTextureColor(self.sig_clr)
-		end
-		local bnk = (num <= 1) and true or false
-		bnk = true
-		self:ApplyBlink(self.sig_img,bnk)
-		self:ApplyBlink(self.sig_bar:GetProgressStatic(),bnk)
+		self.sig_bar:SetColor(self:SignalColor(num))
 	end
+	-- Battery.
 	do
 		local num = clamp(self.mem and self.mem.condition or 1,0,1) * 100
 		local clr = self:BatteryColor(num)
@@ -720,11 +716,6 @@ function UICamfpv:UpdateInfo()
 		self.btr_txt:SetTextColor(clr)
 		self.btr_img:SetTextureColor(clr)
 		self.btr_bar:SetColor(clr)
-		
-		local bnk = (num < 20) and true or false
-		bnk = true
-		self:ApplyBlink(self.btr_img,bnk)
-		self:ApplyBlink(self.btr_bar:GetProgressStatic(),bnk)
 	end
 end
 
@@ -752,18 +743,6 @@ function UICamfpv:BatteryColor(num)
 		return self.CLR_Y
 	end
 	return self.CLR_G
-end
-
-function UICamfpv:ApplyBlink(ele,bnk)
-	if (bnk) then
-		if (ele:IsColorAnimationPresent() ~= true) then
-			ele:SetColorAnimation("ui_medium_blinking_alpha",11,0)
-		end
-	else
-		if (ele:IsColorAnimationPresent() == true) then
-			ele:RemoveColorAnimation()
-		end
-	end
 end
 
 function UICamfpv:Close()
