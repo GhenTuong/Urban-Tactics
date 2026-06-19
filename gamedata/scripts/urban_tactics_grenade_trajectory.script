@@ -5,10 +5,10 @@
 	Todo:
 --]]
 
+TRAJECTORY_MODE = 2
+
 TRAJECTORY_GRD = true
 TRAJECTORY_LCH = true
-
-GRENADE_POS_ADJUST = vector():set(0,0,0)
 
 --[[----------------------------------------------------------------------------------------------------
 	Utilities
@@ -53,6 +53,58 @@ function get_launch_speed(wpn)
 	end
 end
 
+function vector_valid(vec)
+	if (vec and (vec.x == vec.x) and (vec.y == vec.y) and (vec.z == vec.z)) then
+		return true
+	end
+	return false
+end
+
+GRENADE_CLASSES = {
+	[clsid.wpn_grenade_f1]		= true,
+	[clsid.wpn_grenade_f1_s]	= true,
+	[clsid.wpn_grenade_rgd5]	= true,
+	[clsid.wpn_grenade_rgd5_s]	= true,
+}
+LAUNCHER_CLASSES = {
+	[clsid.wpn_rg6_s]			= true,
+	[clsid.wpn_rg6]				= true,
+}
+
+function WeaponGrenade(wpn)
+	return GRENADE_CLASSES[wpn:clsid()] or false
+end
+
+function WeaponLauncher(wpn)
+	return LAUNCHER_CLASSES[wpn:clsid()] or false
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Point
+------------------------------------------------------------------------------------------------------]]
+class "CParticle"
+function CParticle:__init(str)
+	self.particle = particles_object(str)
+	self.position = vector()
+end
+
+function CParticle:Update(pos)
+	self.position:set(pos)
+	self.particle:set_position(self.position)
+end
+
+function CParticle:Show(state)
+	if (state) then
+		if (self.particle:playing() ~= true) then
+			self.particle:play()
+		end
+	else
+		if (self.particle:playing() == true) then
+			self.particle:stop()
+		end
+	end
+end
+
 --[[----------------------------------------------------------------------------------------------------
 	HUD
 ------------------------------------------------------------------------------------------------------]]
@@ -81,19 +133,8 @@ end
 class "CGrenadeTrajectory" (CUIScriptWnd)
 
 function CGrenadeTrajectory:__init() super()
-	self.dt = nil
+	self.st = nil
 	
-	self.grenade_point_const = vector():set(0.4,0.3,0.1)
-	self.grenade_classes = {
-		[clsid.wpn_grenade_f1]			= true,
-		[clsid.wpn_grenade_f1_s] 		= true,
-		[clsid.wpn_grenade_rgd5] 		= true,
-		[clsid.wpn_grenade_rgd5_s] 		= true,
-	}
-	self.launcher_classes = {
-		[clsid.wpn_rg6_s]				= true,
-		[clsid.wpn_rg6]					= true,
-	}
 	self.launcher_hide_states = {
 		[CWeapon.eReload]				= true,
 		[CWeapon.eMisfire]				= true,
@@ -105,10 +146,13 @@ function CGrenadeTrajectory:__init() super()
 	self.index_max = 60
 	
 	self.particles_sec = [[_samples_particles_\grenade_throw_trajectory]]
-	self.particles = nil
-	
 	self.indicator_sec = [[_samples_particles_\grenade_throw_indicator]]
-	self.indicator = nil
+	
+	self.particles = {}
+	for idx=self.index_min,self.index_max do
+		self.particles[idx] = CParticle(self.particles_sec)
+	end
+	self.indicator = CParticle(self.indicator_sec)
 end
 
 function CGrenadeTrajectory:__finalize()
@@ -117,125 +161,107 @@ end
 function CGrenadeTrajectory:Update()
 	CUIScriptWnd.Update(self)
 	
+	local wpn = db.actor:active_item()
+	if not (self:WeaponValidate(wpn)) then
+		return self:Close()
+	end
+	
 	if (level.get_active_cam() ~= 0) then
 		return self:Hide()
 	end
 	
-	local wpn = db.actor:active_item()
-	if not (self:WeaponValidate(wpn)) then
-		return self:Hide()
-	end
-	
-	if not (self.dt and (self.dt.oid == wpn:id())) then
+	if not (self.st and (self.st.oid == wpn:id())) then
 		self:WeaponLoadData(wpn)
 	end
 	
-	if (self.dt.is_grenade ~= true) and (axr_main.weapon_is_zoomed) then
+	if not (self:IsModeShow(wpn)) then
 		return self:Hide()
+	end
+	
+	if (self.st.init_time > time_global()) then
+		return self:Hide()
+	end
+	
+	if (self.st.is_grenade ~= true) then
+		if (axr_main.weapon_is_zoomed or self.launcher_hide_states[wpn:get_state()]) then
+			return self:Hide()
+		end
 	end
 	
 	local pos = self:GetFirePosition(wpn)
 	local vel = self:GetFireVelocity(wpn)
-	self:TrajectoryCalculate(pos,vel)
-	self:TrajectoryDraw()
-end
-
-function CGrenadeTrajectory:TrajectoryCalculate(pos,vel)
-	self.particles_pos = nil
-	self.particles_idx = nil
-	self.indicator_pos = nil
-	if not (pos and vel) then
-		return
+	if not (vector_valid(pos) and vector_valid(vel)) then
+		return self:Hide()
 	end
 	
-	local tmp = {}
-	for i=self.index_min,self.index_max do
-		tmp[#tmp+1] = self:TrajectoryPosition(pos,vel,0.05 * i)
-	end
-	self.particles_pos = tmp
+	self.indicator_idx = nil
 	
-	for i=self.index_min,self.index_max do
-		local src = tmp[i]
-		local dst = tmp[i+1]
-		if not (src and dst) then
-			break
-		end
-		local dir = vector():sub(dst,src):normalize()
-		local num = src:distance_to(dst)
-		local ray = ray_pick(src,dir,num,2,db.actor)
-		if (ray:query()) then
-			self.particles_idx = i
-			self.indicator_pos = vector():mad(src,dir,ray:get_distance() - 0.5)
-			break
-		end
-	end
-end
-
-function CGrenadeTrajectory:TrajectoryDraw()
-	if (self.particles == nil) then
-		self.particles = {}
-		for i=self.index_min,self.index_max do
-			self.particles[i] = particles_object(self.particles_sec)
-		end
-	end
-	for i,k in pairs(self.particles) do
-		local vec = self.particles_pos and self.particles_pos[i]
-		if (vec) and (self.particles_idx == nil or i <= self.particles_idx) then
-			k:set_position(vec)
-			if (k:playing() == false) then
-				k:play()
+	-- Calculate.
+	local pre = 0
+	local ray = ray_pick(vector():set(0,0,0),vector():set(0,0,1),0,2,db.actor)
+	for idx=self.index_min,self.index_max do
+		self.particles[idx]:Update(self:TrajectoryPosition(pos,vel,idx * 0.05))
+		
+		if (self.indicator_idx == nil) and (self.particles[pre]) then
+			local src = self.particles[pre].position
+			local dst = self.particles[idx].position
+			local dir = vector():sub(dst,src):normalize()
+			local tmp = src:distance_to(dst)
+			ray:set_position(src)
+			ray:set_direction(dir)
+			ray:set_range(tmp)
+			if (ray:query()) then
+				self.indicator:Update(vector():mad(src,dir,ray:get_distance() - 0.5))
+				self.indicator_idx = idx
 			end
+		end
+		
+		pre = idx
+	end
+	-- Update.
+	for idx=self.index_min,self.index_max do
+		if (self.indicator_idx == nil) or (idx < self.indicator_idx) then
+			self.particles[idx]:Show(true)
 		else
-			if (k:playing() == true) then
-				k:stop()
-			end
+			self.particles[idx]:Show(false)
 		end
 	end
-	
-	if (self.indicator == nil) then
-		self.indicator = particles_object(self.indicator_sec)
+	self.indicator:Show(self.indicator_idx and true or false)
+end
+
+function CGrenadeTrajectory:IsModeShow(wpn)
+	if (TRAJECTORY_MODE == 0) then
+		return false
 	end
-	if (self.indicator_pos) then
-		self.indicator:set_position(self.indicator_pos)
-		if (self.indicator:playing() == false) then
-			self.indicator:play()
+	if (TRAJECTORY_MODE == 1) then
+		return true
+	end
+	if (TRAJECTORY_MODE == 2) then
+		if (self.st.is_grenade ~= true) then
+			return true
 		end
-	else
-		if (self.indicator:playing() == true) then
-			self.indicator:stop()
+		if (self:GrenadeIsAiming(wpn)) then
+			return true
 		end
 	end
+	return false
 end
 
 function CGrenadeTrajectory:Hide()
-	if (self.particles) then
-		for i,k in pairs(self.particles) do
-			if (k:playing()) then
-				k:stop()
-			end
-			self.particles[i] = nil
-		end
-		self.particles = nil
+	for idx=self.index_min,self.index_max do
+		self.particles[idx]:Show(false)
 	end
-	if (self.indicator) then
-		if (self.indicator:playing()) then
-			self.indicator:stop()
-		end
-		self.indicator = nil
-	end
+	self.indicator:Show(false)
+end
+
+function CGrenadeTrajectory:Close()
+	self:Hide()
+	hud_remove()
 end
 
 --[[----------------------------------------------------------------------------------------------------
 	Misc
 ------------------------------------------------------------------------------------------------------]]
-function CGrenadeTrajectory:IsGrenade(wpn)
-	return self.grenade_classes[wpn:clsid()] or false
-end
-
-function CGrenadeTrajectory:IsLauncher(wpn)
-	return self.launcher_classes[wpn:clsid()] or false
-end
-
 function CGrenadeTrajectory:TrajectoryPosition(pos,vel,duration)
 	--[[
 	x = (v.x * t)
@@ -253,10 +279,10 @@ function CGrenadeTrajectory:WeaponValidate(wpn)
 	if not (wpn) then
 		return false
 	end
-	if (TRAJECTORY_GRD and self:IsGrenade(wpn)) then
+	if (TRAJECTORY_GRD and WeaponGrenade(wpn)) then
 		return true
 	end
-	if (TRAJECTORY_LCH and (self:IsLauncher(wpn) or (wpn:weapon_in_grenade_mode()))) then
+	if (TRAJECTORY_LCH and (WeaponLauncher(wpn) or (wpn:weapon_in_grenade_mode()))) then
 		return true
 	end
 	return false
@@ -265,27 +291,27 @@ end
 function CGrenadeTrajectory:WeaponLoadData(wpn)
 	local sec = wpn:section()
 	
-	self.dt = {}
-	self.dt.oid = wpn:id()
-	self.dt.is_grenade = self:IsGrenade(wpn)
-	if (self.dt.is_grenade) then
-		return
-	end
+	self.st = {}
+	self.st.oid = wpn:id()
+	self.st.is_grenade = WeaponGrenade(wpn)
+	self.st.init_time = time_global() + 500
 	
-	local hud_sec = SYS_GetParam(0,sec,"hud","nil")
-	self.dt.fire_bone_1 = SYS_GetParam(0,hud_sec,"fire_bone","")
-	self.dt.fire_bone_2 = SYS_GetParam(0,hud_sec,"fire_bone2","")
+	if (self.st.is_grenade == false) then
+		local hud_sec = SYS_GetParam(0,sec,"hud","nil")
+		self.st.fire_bone_1 = SYS_GetParam(0,hud_sec,"fire_bone","")
+		self.st.fire_bone_2 = SYS_GetParam(0,hud_sec,"fire_bone2","")
+	end
 end
 
 function CGrenadeTrajectory:GetWeaponBoneId(wpn)
 	do
-		local bid = wpn:bone_id(self.dt.fire_bone_2,true)
+		local bid = wpn:bone_id(self.st.fire_bone_2,true)
 		if (bid ~= 65535) then
 			return bid
 		end
 	end
 	do
-		local bid = wpn:bone_id(self.dt.fire_bone_1,true)
+		local bid = wpn:bone_id(self.st.fire_bone_1,true)
 		if (bid ~= 65535) then
 			return bid
 		end
@@ -299,22 +325,30 @@ function CGrenadeTrajectory:GetWeaponBoneId(wpn)
 	end
 end
 
+function CGrenadeTrajectory:GrenadeIsAiming(wpn)
+	if (wpn:get_state() == CMissile.eThrowStart or wpn:get_state() == CMissile.eReady) then
+		return true
+	end
+	return false
+end
+
 function CGrenadeTrajectory:GrenadeUseDynamicForce(wpn)
 	if (wpn:cast_Missile():IsConstPower()) then
 		return false
 	end
-	local state = wpn:get_state()
-	if (state ~= CMissile.eThrowStart and state ~= CMissile.eReady) then
+	if not (self:GrenadeIsAiming(wpn)) then
 		return false
 	end
 	return true
 end
 
+function CGrenadeTrajectory:GrenadeAiming(wpn)
+	return true
+end
+
 function CGrenadeTrajectory:GetFirePosition(wpn)
-	if (self.dt.is_grenade) then
-		local vec = vector():set(wpn:cast_Missile():GetThrowPoint()):add(GRENADE_POS_ADJUST)
-		cam_xform():transform_tiny(vec)
-		return vec
+	if (self.st.is_grenade) then
+		return db.actor:g_fireParams().pos
 	end
 	-- Launcher.
 	local bid = self:GetWeaponBoneId(wpn)
@@ -322,34 +356,38 @@ function CGrenadeTrajectory:GetFirePosition(wpn)
 end
 
 function CGrenadeTrajectory:GetFireVelocity(wpn)
-	local vel = nil
 	local dir = nil
-	if (self.dt.is_grenade) then
-		dir = device().cam_dir
+	local vel = nil
+	
+	if (self.st.is_grenade) then
+		dir = db.actor:g_fireParams().dir
 		if (self:GrenadeUseDynamicForce(wpn)) then
 			vel = wpn:cast_Missile():GetThrowForce()
 		else
 			vel = wpn:cast_Missile():GetConstForce()
 		end
 	else
-		if (self.launcher_hide_states[wpn:get_state()] ~= true) then
-			local bid = self:GetWeaponBoneId(wpn)
-			local rot = bid and wpn:bone_direction(bid,true)
-			if (rot) then
-				dir = vector():set(0,0,1)
-				matrix():setHPB(rot.x,rot.y,rot.z):transform_dir(dir)
-			end
-			vel = get_launch_speed(wpn)
+		local bid = self:GetWeaponBoneId(wpn)
+		local rot = bid and wpn:bone_direction(bid,true)
+		if (rot) then
+			dir = vector():set(0,0,1)
+			matrix():setHPB(rot.x,rot.y,rot.z):transform_dir(dir)
 		end
+		vel = get_launch_speed(wpn)
 	end
-	return vel and dir and vector():set(dir):mul(vel)
+	
+	if (vector_valid(dir) and vel) then
+		return vector():set(dir):mul(vel)
+	end
 end
 
 --[[----------------------------------------------------------------------------------------------------
 	Callbacks
 ------------------------------------------------------------------------------------------------------]]
-function actor_on_first_update()
-	hud_active()
+function actor_on_changed_slot(new_slot,new_obj,pre_slot,pre_obj)
+	if (new_obj) and (WeaponGrenade(new_obj) or WeaponLauncher(new_obj)) then
+		hud_active()
+	end
 end
 
 function on_show_hide()
@@ -366,6 +404,6 @@ end
 function on_game_start()
 	RegisterScriptCallback("GUI_on_show",on_show_hide)
 	RegisterScriptCallback("GUI_on_hide",on_show_hide)
-	RegisterScriptCallback("actor_on_first_update",actor_on_first_update)
+	RegisterScriptCallback("actor_on_changed_slot",actor_on_changed_slot)
 	RegisterScriptCallback("actor_on_net_destroy",actor_on_net_destroy)
 end

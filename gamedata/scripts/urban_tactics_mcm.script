@@ -9,8 +9,10 @@ local version = "1.0"
 
 function on_option_change()
 	if (ui_mcm) then
-		ut_grenade_trajectory.TRAJECTORY_GRD = ui_mcm.get("gt/urban_tactics/trajectory_grd")
-		ut_grenade_trajectory.TRAJECTORY_LCH = ui_mcm.get("gt/urban_tactics/trajectory_lch")
+		urban_tactics_grenade_trajectory.TRAJECTORY_MODE = ui_mcm.get("gt/urban_tactics/trajectory_mode")
+		urban_tactics_grenade_trajectory.TRAJECTORY_GRD = ui_mcm.get("gt/urban_tactics/trajectory_grd")
+		urban_tactics_grenade_trajectory.TRAJECTORY_LCH = ui_mcm.get("gt/urban_tactics/trajectory_lch")
+		
 		urban_tactics_ied.KEY_DETONATE = ui_mcm.get("gt/urban_tactics/key_ied_detonate") or urban_tactics_ied.KEY_DETONATE_DEF
 		urban_tactics_drone.KEY_DETONATE = ui_mcm.get("gt/urban_tactics/key_drone_detonate") or urban_tactics_drone.KEY_DETONATE_DEF
 	end
@@ -26,18 +28,21 @@ function on_mcm_load()
 			{id = "tittle_name",type = "title",text = strformat(GT("ui_mcm_gt_urban_tactics_tittle"),version)},
 			{id = "tittle_line_2",type = "line"},
 			
+			{id = "trajectory_name",type = "title",text = "ui_mcm_gt_urban_tactics_trajectory_name"},
+			{id = "trajectory_mode",type = "list",val = 2,def = 1,content = {{0,0},{1,1},{2,2}}},
 			{id = "trajectory_grd",type = "check",val = 1,def = true},
 			{id = "trajectory_lch",type = "check",val = 1,def = true},
+			{id = "line_1",type = "line"},
 			
 			{id = "ied_name",type = "title",text = "ui_mcm_gt_urban_tactics_ied_name"},
 			{id = "ied_desc",type = "desc",text = "ui_mcm_gt_urban_tactics_ied_desc"},
 			{id = "key_ied_detonate",type = "key_bind",val = 2,def = urban_tactics_ied.KEY_DETONATE_DEF},
-			{id = "ied_line",type = "line"},
+			{id = "line_2",type = "line"},
 			
 			{id = "drone_name",type = "title",text = "ui_mcm_gt_urban_tactics_drone_name"},
 			{id = "drone_desc",type = "desc",text = "ui_mcm_gt_urban_tactics_drone_desc"},
 			{id = "key_drone_detonate",type = "key_bind",val = 2,def = urban_tactics_drone.KEY_DETONATE_DEF},
-			{id = "drone_line",type = "line"},
+			{id = "line_3",type = "line"},
 		}
 	}, "gt"
 end
