@@ -1,6 +1,6 @@
 <w>
-	<file name="ui\urban_tactics\ui_crosshair_drone">
-	    <texture id="ui_crosshair_drone" x="0" y="128" width="1024" height="768" />
+	<file name="ui\urban_tactics\ui_drone_hud">
+	    <texture id="ui_drone_hud" x="0" y="128" width="1024" height="768" />
 	</file>
 	
 	<file name="ui\urban_tactics\ui_drone_hud_icons">
@@ -10,11 +10,22 @@
 	    <texture id="ui_drone_hud_dialog" x="300" y="120" width="196" height="44" />
 	</file>
 	
-	<file name="ui\urban_tactics\ui_drone_icon">
-	    <texture id="ui_drone_icon" x="15" y="15" width="97" height="97" />
+	<file name="ui\ui_common">
+	    <texture id="ui_drone_cursor" x="870" y="777" width="22" height="22" />
+	</file>
+	
+	<file name="ui\urban_tactics\ui_drone_compass_img">
+	    <texture id="ui_drone_compass_img" x="0" y="0" width="127" height="127" />
+	</file>
+	<file name="ui\urban_tactics\ui_drone_compass_bgr">
+	    <texture id="ui_drone_compass_bgr" x="0" y="0" width="127" height="127" />
+	</file>
+	
+	<file name="ui\urban_tactics\ui_drone_map">
+	    <texture id="ui_drone_map" x="29" y="29" width="69" height="69" />
 	</file>
 	
 	<file name="ui\urban_tactics\ui_remote_ied">
-	    <texture id="ui_remote_ied" x="21" y="21" width="20" height="20" />
+	    <texture id="ui_remote_ied" x="11" y="11" width="105" height="105" />
 	</file>
 </w>

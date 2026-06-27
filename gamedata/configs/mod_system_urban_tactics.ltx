@@ -42,8 +42,7 @@ snd_4_layer4	= urb_tac\weapons\grenade\echo_05
 [m_drone_base]
 GroupControlSection			= spawn_group
 cform						= skeleton
-class						= SCRPTCAR
-kind						= v_drone
+class						= _S_DRONE
 type						= fly
 use_action_hint				= drone_use_hint_pickup
 script_binding				= urban_tactics_drone.init
@@ -58,11 +57,11 @@ use3_functor				= urban_tactics_drone.drone_detach_desc
 use3_action_functor			= urban_tactics_drone.drone_detach_func
 
 ;----------------------------------------------------------------------------------------------------
-[handheld_drone]:m_drone_item
-visual						= dynamics\vehicles\drone\handheld_drone.ogf
-inv_name					= handheld_drone_name
-inv_name_short				= handheld_drone_name
-description					= handheld_drone_desc
+[drone_fpv_freestyle]:m_drone_item
+visual						= dynamics\vehicles\drone\fpv_freestyle.ogf
+inv_name					= drone_fpv_freestyle_name
+inv_name_short				= drone_fpv_freestyle_name
+description					= drone_fpv_freestyle_desc
 icons_texture				= ui\actor_items\ui_icon_drone
 inv_grid_width				= 3
 inv_grid_height				= 2
@@ -73,27 +72,59 @@ attach_angle_offset			= 0.0,0.0,0.0
 attach_position_offset		= 0.0,0.0,0.0
 attach_bone_name			= bip01_l_hand
 can_trade					= true
+cost						= 5000
+tier						= 3
+nv_effect					= nil
+
+[drone_fpv_freestyle_veh]:drone_fpv_freestyle,m_drone_base
+control_ele_force			= 2.5
+control_pit_force			= 1.5
+control_rol_force			= 1.5
+control_yaw_force			= 1.5
+damping_velocity			= 1.0
+damping_rotation			= 0.5,0.5,0.5
+attach_bone					= attach_bone
+power_time					= 1200
+power_crit					= 0.05
+sig_radius					= 400
+
+[drone_dji_phantom_2]:m_drone_item
+visual						= dynamics\vehicles\drone\dji_phantom_2.ogf
+inv_name					= drone_dji_phantom_2_name
+inv_name_short				= drone_dji_phantom_2_name
+description					= drone_dji_phantom_2_desc
+icons_texture				= ui\actor_items\ui_icon_drone
+inv_grid_width				= 3
+inv_grid_height				= 2
+inv_grid_x					= 0
+inv_grid_y					= 0
+inv_weight					= 1.2
+attach_angle_offset			= 0.0,0.0,0.0
+attach_position_offset		= 0.0,0.0,0.0
+attach_bone_name			= bip01_l_hand
+can_trade					= true
 cost						= 10000
 tier						= 3
+nv_effect					= nightvision_1
 
-[handheld_drone_veh]:handheld_drone,m_drone_base
-control_neutral				= 1.0
-control_ele_max				= 3.0
-control_yaw_max				= 3.0
-control_pit_max				= 2.0
-control_rol_max				= 2.0
-fly_weight_min				= 20
-attach_bone					= attach_bone
-power_cons					= 0.000416 ;40 minutes
+[drone_dji_phantom_2_veh]:drone_dji_phantom_2,m_drone_base
+control_ele_force			= 3.0
+control_pit_force			= 2.0
+control_rol_force			= 2.0
+control_yaw_force			= 2.0
+damping_velocity			= 1.0
+damping_rotation			= 0.5,0.5,0.5
+attach_bone					= nil
+power_time					= 2400
 power_crit					= 0.05
-sig_radius					= 300
+sig_radius					= 400
 
 ;----------------------------------------------------------------------------------------------------
 ;	Camera
 ;----------------------------------------------------------------------------------------------------
 [drone_cam_first]
-lim_pitch					= -30,85
-lim_yaw						= -0.01,0.01
+lim_pitch					= 0,0
+lim_yaw						= 0,0
 lim_deg						= true
 rot_speed					= 3.14,1.0,0
 

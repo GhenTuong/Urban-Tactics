@@ -66,7 +66,8 @@ function CUrbanTacticsManager:on_key_release(dik)
 		give_object_to_actor("ied_remote_exp",2)
 		give_object_to_actor("ied_remote_rpg",2)
 		
-		give_object_to_actor("handheld_drone",1)
+		give_object_to_actor("drone_fpv_freestyle",1)
+		give_object_to_actor("drone_dji_phantom_2",1)
 	end
 end
 

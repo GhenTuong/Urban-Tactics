@@ -13,12 +13,6 @@ TRAJECTORY_LCH = true
 --[[----------------------------------------------------------------------------------------------------
 	Utilities
 ------------------------------------------------------------------------------------------------------]]
-function cam_xform()
-	local pos = device().cam_pos
-	local dir = device().cam_dir
-	return matrix():setHPB(dir:getH(),dir:getP(),0):translate_over(pos)
-end
-
 function get_grenade_ammo(section)
 	local str = ini_sys:r_string_ex(section,"grenade_class")
 	return str and str_explode(str,",")
@@ -136,12 +130,13 @@ function CGrenadeTrajectory:__init() super()
 	self.st = nil
 	
 	self.launcher_hide_states = {
-		[CWeapon.eReload]				= true,
-		[CWeapon.eMisfire]				= true,
-		[CWeapon.eSwitch]				= true,
-		[CWeapon.eSwitchMode]			= true,
+		[CWeapon.eReload]		= true,
+		[CWeapon.eMisfire]		= true,
+		[CWeapon.eSwitch]		= true,
+		[CWeapon.eSwitchMode]	= true,
 	}
 	
+	self.init_delay = 200
 	self.index_min = 2
 	self.index_max = 60
 	
@@ -153,6 +148,9 @@ function CGrenadeTrajectory:__init() super()
 		self.particles[idx] = CParticle(self.particles_sec)
 	end
 	self.indicator = CParticle(self.indicator_sec)
+	
+	self.fire_pos = vector()
+	self.fire_vel = vector()
 end
 
 function CGrenadeTrajectory:__finalize()
@@ -170,15 +168,15 @@ function CGrenadeTrajectory:Update()
 		return self:Hide()
 	end
 	
-	if not (self.st and (self.st.oid == wpn:id())) then
+	if not (self.st and (self.st.oid == wpn:id()) and (self.st.sec == wpn:section())) then
 		self:WeaponLoadData(wpn)
 	end
 	
 	if not (self:IsModeShow(wpn)) then
 		return self:Hide()
 	end
-	
-	if (self.st.init_time > time_global()) then
+	-- Skip a few ms to have g_fireParams() ready.
+	if (self.st.init_timer > time_global()) then
 		return self:Hide()
 	end
 	
@@ -188,9 +186,7 @@ function CGrenadeTrajectory:Update()
 		end
 	end
 	
-	local pos = self:GetFirePosition(wpn)
-	local vel = self:GetFireVelocity(wpn)
-	if not (vector_valid(pos) and vector_valid(vel)) then
+	if not (self:CalculateFireParameters(wpn)) then
 		return self:Hide()
 	end
 	
@@ -200,7 +196,7 @@ function CGrenadeTrajectory:Update()
 	local pre = 0
 	local ray = ray_pick(vector():set(0,0,0),vector():set(0,0,1),0,2,db.actor)
 	for idx=self.index_min,self.index_max do
-		self.particles[idx]:Update(self:TrajectoryPosition(pos,vel,idx * 0.05))
+		self.particles[idx]:Update(self:TrajectoryPosition(self.fire_pos,self.fire_vel,idx * 0.05))
 		
 		if (self.indicator_idx == nil) and (self.particles[pre]) then
 			local src = self.particles[pre].position
@@ -262,19 +258,6 @@ end
 --[[----------------------------------------------------------------------------------------------------
 	Misc
 ------------------------------------------------------------------------------------------------------]]
-function CGrenadeTrajectory:TrajectoryPosition(pos,vel,duration)
-	--[[
-	x = (v.x * t)
-	y = (v.y * t) - (g * (t^2) / 2)
-	Assume:
-		- Stalker engine has no air resistance. (Confirmed)
-		- Object mass doesn't affect the equalization. (Not Confirmed)
-	--]]
-	local motion = vector():set(vel.x,0,vel.z):mul(duration)
-	motion.y = (vel.y * duration) - (level.physics_world():gravity() * math.pow(duration,2) / 2)
-	return vector():set(pos):add(motion)
-end
-
 function CGrenadeTrajectory:WeaponValidate(wpn)
 	if not (wpn) then
 		return false
@@ -289,40 +272,11 @@ function CGrenadeTrajectory:WeaponValidate(wpn)
 end
 
 function CGrenadeTrajectory:WeaponLoadData(wpn)
-	local sec = wpn:section()
-	
 	self.st = {}
 	self.st.oid = wpn:id()
+	self.st.sec = wpn:section()
 	self.st.is_grenade = WeaponGrenade(wpn)
-	self.st.init_time = time_global() + 500
-	
-	if (self.st.is_grenade == false) then
-		local hud_sec = SYS_GetParam(0,sec,"hud","nil")
-		self.st.fire_bone_1 = SYS_GetParam(0,hud_sec,"fire_bone","")
-		self.st.fire_bone_2 = SYS_GetParam(0,hud_sec,"fire_bone2","")
-	end
-end
-
-function CGrenadeTrajectory:GetWeaponBoneId(wpn)
-	do
-		local bid = wpn:bone_id(self.st.fire_bone_2,true)
-		if (bid ~= 65535) then
-			return bid
-		end
-	end
-	do
-		local bid = wpn:bone_id(self.st.fire_bone_1,true)
-		if (bid ~= 65535) then
-			return bid
-		end
-	end
-	do
-		--Last resort. Should never happen.
-		local bid = wpn:bone_id("wpn_body",true)
-		if (bid ~= 65535) then
-			return bid
-		end
-	end
+	self.st.init_timer = time_global() + self.init_delay
 end
 
 function CGrenadeTrajectory:GrenadeIsAiming(wpn)
@@ -342,50 +296,50 @@ function CGrenadeTrajectory:GrenadeUseDynamicForce(wpn)
 	return true
 end
 
-function CGrenadeTrajectory:GrenadeAiming(wpn)
-	return true
-end
-
-function CGrenadeTrajectory:GetFirePosition(wpn)
-	if (self.st.is_grenade) then
-		return db.actor:g_fireParams().pos
-	end
-	-- Launcher.
-	local bid = self:GetWeaponBoneId(wpn)
-	return bid and wpn:bone_position(bid,true)
-end
-
-function CGrenadeTrajectory:GetFireVelocity(wpn)
-	local dir = nil
+function CGrenadeTrajectory:CalculateFireParameters(wpn)
 	local vel = nil
-	
 	if (self.st.is_grenade) then
-		dir = db.actor:g_fireParams().dir
 		if (self:GrenadeUseDynamicForce(wpn)) then
 			vel = wpn:cast_Missile():GetThrowForce()
 		else
 			vel = wpn:cast_Missile():GetConstForce()
 		end
 	else
-		local bid = self:GetWeaponBoneId(wpn)
-		local rot = bid and wpn:bone_direction(bid,true)
-		if (rot) then
-			dir = vector():set(0,0,1)
-			matrix():setHPB(rot.x,rot.y,rot.z):transform_dir(dir)
-		end
 		vel = get_launch_speed(wpn)
 	end
 	
-	if (vector_valid(dir) and vel) then
-		return vector():set(dir):mul(vel)
+	local tmp = db.actor:g_fireParams()
+	if not (vel and vector_valid(tmp.pos) and vector_valid(tmp.dir)) then
+		return false
 	end
+	
+	if (wpn:weapon_in_grenade_mode()) then
+		self.fire_pos:set(wpn:cast_Weapon():get_CurrentFirePoint2())
+	else
+		self.fire_pos:set(tmp.pos)
+	end
+	self.fire_vel:set(tmp.dir):mul(vel)
+	return true
+end
+
+function CGrenadeTrajectory:TrajectoryPosition(pos,vel,duration)
+	--[[
+	x = (v.x * t)
+	y = (v.y * t) - (g * (t^2) / 2)
+	Assume:
+		- Stalker engine has no air resistance. (Confirmed)
+		- Object mass doesn't affect the equalization. (Not Confirmed)
+	--]]
+	local motion = vector():set(vel.x,0,vel.z):mul(duration)
+	motion.y = (vel.y * duration) - (level.physics_world():gravity() * math.pow(duration,2) / 2)
+	return vector():set(pos):add(motion)
 end
 
 --[[----------------------------------------------------------------------------------------------------
 	Callbacks
 ------------------------------------------------------------------------------------------------------]]
 function actor_on_changed_slot(new_slot,new_obj,pre_slot,pre_obj)
-	if (new_obj) and (WeaponGrenade(new_obj) or WeaponLauncher(new_obj)) then
+	if (new_obj) and (IsWeapon(new_obj) or IsGrenade(new_obj)) then
 		hud_active()
 	end
 end

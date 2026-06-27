@@ -1,27 +1,39 @@
-[fly_definition]
-body_bone					= body
+[drone_definition]
 drive_bones					= drive_1,drive_2,drive_3,drive_4
-rotor_force_max				= 1000
-rotor_speed_max				= 50
+rotor_force					= 10
+rotor_speed					= 20
 
 [rotors]
-blade_1						= clockwise:true
-blade_2						= clockwise:false
-blade_3						= clockwise:false
-blade_4						= clockwise:true
+rotor_1						= clock:true
+rotor_2						= clock:false
+rotor_3						= clock:false
+rotor_4						= clock:true
+
+[visual_camera_definition]
+enable						= true
+rotate_x_bone				= bone_x
+rotate_y_bone				= bone_y
+rotate_x_speed				= 20
+rotate_y_speed				= 20
+snap						= false
 
 [camera]
 cam_first					= drone_cam_first
 cam_chase					= drone_cam_chase
+
+[scopes]
+S0	= bone_camera:1.0
+S1	= bone_camera:2.0
+S2	= bone_camera:6.0
 
 [car_definition]
 remote_control				= true
 camera_free					= drone_cam_free
 camera_bone_def				= bone_camera
 camera_bone_aim				= bone_camera
-zoom_factor_def				= 1.0
-zoom_factor_aim				= 2.0
-camera_pos					= 0.0,0.4,0.0
+zoom_factor_def				= 1.5
+zoom_factor_aim				= 3.0
+camera_pos					= 0.0,0.5,0.0
 damage						= damage_bones
 
 ;----------------------------------------------------------------------------------------------------

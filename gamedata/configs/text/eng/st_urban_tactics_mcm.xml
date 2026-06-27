@@ -12,15 +12,27 @@
 		<text>Urban Tactics %s</text>
 	</string>
 	
+	<string id="ui_mcm_gt_urban_tactics_trajectory_name">
+		<text>Grenade trajectory</text>
+	</string>
+	<string id="ui_mcm_gt_urban_tactics_trajectory_mode">
+		<text>Mode</text>
+	</string>
+	<string id="gt_urban_tactics_trajectory_mode_lst_0">
+		<text>Disable</text>
+	</string>
+	<string id="gt_urban_tactics_trajectory_mode_lst_1">
+		<text>Enable: Always show</text>
+	</string>
+	<string id="gt_urban_tactics_trajectory_mode_lst_2">
+		<text>Enable: Grenade only show when pin pulled</text>
+	</string>
+	
 	<string id="ui_mcm_gt_urban_tactics_trajectory_grd">
 		<text>Show grenade trajectory</text>
 	</string>
 	<string id="ui_mcm_gt_urban_tactics_trajectory_lch">
-		<text>Show grenade launcher trajectory</text>
-	</string>
-<!------------------------------------------------------>
-	<string id="ui_mcm_gt_urban_tactics_key_grenade_wheel">
-		<text>Grenade wheel</text>
+		<text>Show launcher trajectory</text>
 	</string>
 
 <!------------------------------------------------------>
@@ -34,19 +46,11 @@
 \n• Use a cellphone to detonate deployed IEDs.
 </text>
 	</string>
-	<string id="ui_mcm_gt_urban_tactics_key_nokia_back">
-		<text>Select previous IED</text>
+	
+	<string id="ui_mcm_gt_urban_tactics_key_ied_detonate">
+		<text>Detonate selected IEDs</text>
 	</string>
-	<string id="ui_mcm_gt_urban_tactics_key_nokia_next">
-		<text>Select next IED</text>
-	</string>
-	<string id="ui_mcm_gt_urban_tactics_key_nokia_call">
-		<text>Detonate IED</text>
-	</string>
-	<string id="ui_mcm_gt_urban_tactics_key_nokia_reset">
-		<text>Reset cellphone</text>
-	</string>
-
+	
 <!------------------------------------------------------>
 	<string id="ui_mcm_gt_urban_tactics_drone_name">
 		<text>Drone</text>

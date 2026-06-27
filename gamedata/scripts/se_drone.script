@@ -1,0 +1,69 @@
+--[[----------------------------------------------------------------------------------------------------
+	GhenTuong
+	Discord: GhenTuong#1278
+	Twitter: https://twitter.com/GhenTuong
+	To do:
+------------------------------------------------------------------------------------------------------]]
+function register(object_factory)
+	class_registrator.cs_register(object_factory,"CCar","se_drone.se_drone","_S_DRONE","drone_s")
+end
+
+function _G.IsDrone(o,c)
+	if not (c) then
+		c = o and o:clsid()
+	end
+	return c and (c == clsid.drone_s) or false
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	db
+------------------------------------------------------------------------------------------------------]]
+db.se_drones = {}
+
+function add_se_drones(se)
+	db.se_drones[se.id] = se
+end
+
+function del_se_drones(se)
+	db.se_drones[se.id] = nil
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Class
+------------------------------------------------------------------------------------------------------]]
+
+class "se_drone" (cse_alife_car)
+function se_drone:__init (section) super (section)
+end
+
+function se_drone:on_register()
+	cse_alife_car.on_register(self)
+	SendScriptCallback("server_entity_on_register",self,"se_drone")
+	add_se_drones(self)
+end
+
+function se_drone:on_unregister()
+	SendScriptCallback("server_entity_on_unregister",self,"se_drone")
+	del_se_drones(self)
+	cse_alife_car.on_unregister(self)
+end
+
+function se_drone:can_switch_offline()
+	return cse_alife_car.can_switch_offline(self)
+end
+
+function se_drone:can_switch_online()
+	return cse_alife_car.can_switch_online(self)
+end
+
+function se_drone:STATE_Write(packet)
+	cse_alife_car.STATE_Write(self,packet)
+end
+
+function se_drone:STATE_Read(packet,size)
+	cse_alife_car.STATE_Read(self, packet,size)
+end
+
+function se_drone:keep_saved_data_anyway()
+	return true
+end

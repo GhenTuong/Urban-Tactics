@@ -125,19 +125,44 @@
 <!------------------------------------------------------------------------------------------------------
 	Drone
 ------------------------------------------------------------------------------------------------------->
-	<string id="handheld_drone_name">
-		<text>Handheld Drone</text>
+	<string id="drone_fpv_freestyle_name">
+		<text>FPV freestyle drone</text>
 	</string>
-	<string id="handheld_drone_desc">
-		<text>An unmanned aerial vehicle small enough to be man-portable. The drone is very maneuverable, can fit through tight spaces, and provides an edge view over a wide area. It is suitable for reconnaissance purposes.\n \n
+	<string id="drone_fpv_freestyle_desc">
+		<text>A FPV freestyle drone assembled from parts supplied by different brands for either cheapest or most available. Solid construction allows the attachment of an additional payload, mostly remote-controlled explosive devices. Though a cheap camera provides a limited reconnaissance capability.\n \n
+		%c[ui_gray_3]PROPERTIES:\n
 		%c[d_blue] • %c[ui_gray_2] Technological item\n
 		%c[d_blue] • %c[ui_gray_2] High electric power consumption\n
-		%c[d_blue] • %c[ui_gray_2] Remotely controlled by PDA.\n
-		%c[d_blue] • %c[ui_gray_2] Can attach remote-controlled explosives.\n
-		%c[d_blue] • %c[ui_gray_2] Drones on the field will be lost if the owner leaves the current area.\n
+		%c[d_blue] • %c[ui_gray_2] Remotely controlled by PDA\n
 		%c[d_purple] • %c[ui_gray_2] Operational range: %c[ui_gray_1]~300 meters\n
 		%c[d_purple] • %c[ui_gray_2] Full battery flight time: %c[ui_gray_1]~40 minutes\n
 		%c[d_purple] • %c[ui_gray_2] Battery critical threshold: %c[ui_gray_1]5%\n
+		%c[d_green] • %c[ui_gray_2] Can attach remote-controlled explosives (consume more power)\n
+		%c[ui_gray_3]CAMERA:\n
+		%c[d_purple] • %c[ui_gray_2] Horizontal guidance: %c[d_orange]None\n
+		%c[d_purple] • %c[ui_gray_2] Vertical guidance: %c[d_orange]-50°/+10°\n
+		%c[d_purple] • %c[ui_gray_2] Camera magnification: %c[d_orange]1.0x-1.5x\n
 		</text>
 	</string>
+	
+	<string id="drone_dji_phantom_2_name">
+		<text>DJI Phantom 2</text>
+	</string>
+	<string id="drone_dji_phantom_2_desc">
+		<text>Consumer-grade reconnaissance drone. DJI Phantom 2 provides short-range aerial surveillance and target spotting. Lightweight construction gives no room for additional payload but allows rapid deployment and recovery. Suitable for scouting, observation, and mapping missions.\n \n
+		%c[ui_gray_3]PROPERTIES:\n
+		%c[d_blue] • %c[ui_gray_2] Technological item\n
+		%c[d_blue] • %c[ui_gray_2] High electric power consumption\n
+		%c[d_blue] • %c[ui_gray_2] Remotely controlled by PDA\n
+		%c[d_red] • %c[ui_gray_2] No attachable payload\n
+		%c[d_purple] • %c[ui_gray_2] Operational range: %c[ui_gray_1]~400 meters\n
+		%c[d_purple] • %c[ui_gray_2] Full battery flight time: %c[ui_gray_1]~30 minutes\n
+		%c[d_purple] • %c[ui_gray_2] Battery critical threshold: %c[ui_gray_1]5%\n
+		%c[ui_gray_3]CAMERA:\n
+		%c[d_purple] • %c[ui_gray_2] Horizontal guidance: %c[d_orange]±90°\n
+		%c[d_purple] • %c[ui_gray_2] Vertical guidance: %c[d_orange]-85°/+20°\n
+		%c[d_purple] • %c[ui_gray_2] Camera magnification: %c[d_orange]1.0x-6.0x\n
+		</text>
+	</string>
+	
 </string_table>

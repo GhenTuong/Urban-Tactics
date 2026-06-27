@@ -10,12 +10,10 @@ _G.AddScriptCallback("drone_on_net")
 _G.AddScriptCallback("drone_on_death")
 
 local DRONE_MAP_SPOT = "drone_map_spot"
+local DRONE_NVG_PPE = 555242 --URB
 
 KEY_DETONATE_DEF = DIK_keys.DIK_J
 KEY_DETONATE = KEY_DETONATE_DEF
-
-HIDE_MINIMAP_DEF = true
-HIDE_MINIMAP = HIDE_MINIMAP_DEF
 
 db.drone_objects = {}
 
@@ -27,13 +25,6 @@ function del_object(obj)
 	db.drone_objects[obj:id()] = nil
 end
 
-se_drones = {}
-
-function _G.IsDrone(obj)
-	local oid = obj and (type(obj.id) == "function" and obj:id() or obj.id)
-	return oid and se_drones[oid] and true or false
-end
-
 --[[----------------------------------------------------------------------------------------------------
 	Manager
 ------------------------------------------------------------------------------------------------------]]
@@ -41,7 +32,8 @@ _G.DRONE_MGR = nil
 
 class "CDroneManager"
 function CDroneManager:__init()
-	self.DRONE_STORAGE = {}
+	self.DRONE_VAR = {}
+	self.DRONE_MEM = {}
 	
 	self.cfg_item_to_object = {}
 	self.cfg_object_to_item = {}
@@ -59,6 +51,8 @@ function CDroneManager:__init()
 			end
 		end
 	end
+	
+	self.nvg_drone = false
 	
 	RegisterScriptCallback("save_state",self)
 	RegisterScriptCallback("load_state",self)
@@ -79,66 +73,46 @@ function CDroneManager:__init()
 	RegisterScriptCallback("on_npc_vs_heli_eva",on_npc_vs_heli_eva)
 	RegisterScriptCallback("on_npc_vs_heli_act",on_npc_vs_heli_act)
 	
-	if (rax_icon_layers) then
-		rax_icon_layers.register("drone_icon_layer",drone_icon_layer)
-	else
-		rax_icon_layers_urban_tactics.register("drone_icon_layer",drone_icon_layer)
-	end
-	
-	self.minimap_disabled = false
+	rax_icon_layers.register("drone_icon_layer",drone_icon_layer)
 end
 
 function CDroneManager:save_state(m_data)
-	m_data.GT_DRONE_STORAGE = self.DRONE_STORAGE
+	m_data.GT_DRONE_VAR = self.DRONE_VAR
+	m_data.GT_DRONE_MEM = self.DRONE_MEM
 end
 
 function CDroneManager:load_state(m_data)
-	self.DRONE_STORAGE = m_data.GT_DRONE_STORAGE or {}
+	self.DRONE_VAR = m_data.GT_DRONE_VAR or {}
+	self.DRONE_MEM = m_data.GT_DRONE_MEM or {}
 end
 
 function CDroneManager:actor_on_first_update()
---[[
-	for idx=#self.DRONE_ACT_OWN,1,-1 do
-		local id = self.DRONE_ACT_OWN[idx]
-		local se = id and alife_object(id)
-		if (se) then
-			if not (simulation_objects.is_on_the_actor_level(se)) then
-				if (self:IsDroneSection(se:section_name())) then
-					URB_TAC:DEBUG("Release drone for not in actor level [%s]",se:name())
-					alife_release(se)
-				else
-					URB_TAC:DEBUG("ERROR: object invalid [%s]",se:name())
-					self:ActorOwnDel(se.id)
-				end
-			end
-		else
-			URB_TAC:DEBUG("ERROR: object does not exist")
-			self:ActorOwnDel(se.id)
+	for id,se in pairs(db.se_drones) do
+		if not (simulation_objects.is_on_the_actor_level(se)) then
+			URB_TAC:DEBUG("Release drone for not in actor level [%s]",se:name())
+			alife_release(se)
 		end
 	end
---]]
 end
 
 function CDroneManager:server_entity_on_register(se,flag)
-	if (flag == "se_car") and (self:IsDroneSection(se:section_name())) then
-		se_drones[se.id] = se
-		if (self.DRONE_STORAGE[se.id] == nil) then
-			self.DRONE_STORAGE[se.id] = {}
+	if (flag == "se_drone") then
+		if (self.DRONE_MEM[se.id] == nil) then
+			self.DRONE_MEM[se.id] = {}
 		end
 		URB_TAC:DEBUG("server_entity_on_register(%s)",se:name())
 	end
 end
 
 function CDroneManager:server_entity_on_unregister(se,flag)
-	if (flag == "se_car") and (self:IsDroneSection(se:section_name())) then
-		se_drones[se.id] = nil
-		self.DRONE_STORAGE[se.id] = nil
+	if (flag == "se_drone") then
+		self.DRONE_MEM[se.id] = nil
 		URB_TAC:DEBUG("server_entity_on_unregister(%s)",se:name())
 	end
 end
 
 function CDroneManager:IsDroneSection(sec)
-	return sec and (SYS_GetParam(0,sec,"kind") == "v_drone") and true or false
+	return sec and (SYS_GetParam(0,sec,"class") == "_S_DRONE") and true or false
 end
 
 function CDroneManager:ItemToObject(sec)
@@ -150,7 +124,7 @@ function CDroneManager:ObjectToItem(sec)
 end
 
 function CDroneManager:StorageById(oid)
-	return oid and self.DRONE_STORAGE[oid]
+	return oid and self.DRONE_MEM[oid]
 end
 
 function CDroneManager:StorageCopy(src_id,dst_id)
@@ -241,18 +215,20 @@ function CDroneManager:map_spot_menu_property_clicked(property_ui,oid,lvl,sec)
 end
 
 function CDroneManager:actor_on_attach_vehicle(obj)
-	if (obj and IsDrone(obj)) then
+	if (IsDrone(obj)) then
 		hud_camfpv_active()
 		self:SetMinimap(false)
+		obj:binded_object():actor_on_attach_vehicle()
 		RegisterScriptCallback("actor_on_update",self)
 		RegisterScriptCallback("on_key_press",self)
 	end
 end
 
 function CDroneManager:actor_on_detach_vehicle(obj)
-	if (obj and IsDrone(obj)) then
+	if (IsDrone(obj)) then
 		hud_camfpv_remove()
 		self:SetMinimap(true)
+		obj:binded_object():actor_on_detach_vehicle()
 		UnregisterScriptCallback("actor_on_update",self)
 		UnregisterScriptCallback("on_key_press",self)
 	end
@@ -261,9 +237,7 @@ end
 function CDroneManager:actor_on_update()
 	local obj = db.actor:get_attached_vehicle()
 	if (obj and IsDrone(obj)) then
-		if (obj:binded_object()) then
-			obj:binded_object():ActorUpdate()
-		end
+		obj:binded_object():actor_on_update()
 	end
 end
 
@@ -297,13 +271,14 @@ function CDroneManager:ActorMenu_on_item_drag_drop(itm,obj,slot_from,slot_next)
 	if not (slot_from == EDDListType.iActorBag and slot_next == EDDListType.iActorBag) then
         return
     end
-	if (self:ItemToObject(obj:section())) then
-		self:DroneDetach(obj)
-		self:DroneAttach(obj,itm)
+	local sec = self:ItemToObject(obj:section())
+	local str = sec and SYS_GetParam(0,sec,"attach_bone")
+	if not (str and str ~= "" and str ~= "nil") then
+		return
 	end
+	self:DroneDetach(obj)
+	self:DroneAttach(obj,itm)
 end
-
-local drone_icon_scale = 0.5
 
 function drone_icon_layer(cell,obj,sec)
 	if not (cell.showcase == 0) then
@@ -316,14 +291,16 @@ function drone_icon_layer(cell,obj,sec)
 	if not (tmp) then
 		return
 	end
+
+	local icon_scale = 0.5
 	
 	local obj_axis = utils_xml.get_item_axis(sec)
 	local itm_axis = utils_xml.get_item_axis(tmp)
 	return {
 		icon_layer = tmp,
 		icon_layer_x = 0,
-		icon_layer_y = obj_axis.h / drone_icon_scale - itm_axis.h,
-		icon_layer_scale = drone_icon_scale,
+		icon_layer_y = obj_axis.h / icon_scale - itm_axis.h,
+		icon_layer_scale = icon_scale,
 	}
 end
 
@@ -337,6 +314,35 @@ function CDroneManager:SetMinimap(state)
 	else
 		ActorMenu.get_maingame().UIZoneMap.disabled = true
 		ActorMenu.get_maingame().UIMotionIcon:Show(false)
+	end
+end
+
+function CDroneManager:GetTorchNVG()
+	return self.DRONE_VAR.nvg_torch and true or false
+end
+
+function CDroneManager:SetTorchNVG(state)
+	if (state) then
+		self.DRONE_VAR.nvg_torch = true
+	else
+		self.DRONE_VAR.nvg_torch = nil
+	end
+end
+
+function CDroneManager:GetDroneNVG()
+	return self.nvg_drone and true or false
+end
+
+function CDroneManager:SetDroneNVG(cfg,state)
+	if (state) and (not self.nvg_drone) and (cfg) then
+		level.add_pp_effector(cfg.ppe .. ".ppe",DRONE_NVG_PPE,true)
+		game.set_nv_lumfactor(cfg.lum)
+		self.nvg_drone = true
+	end
+	if (not state) and (self.nvg_drone) then
+		level.remove_pp_effector(DRONE_NVG_PPE)
+		game.set_nv_lumfactor(0)
+		self.nvg_drone = false
 	end
 end
 
@@ -519,7 +525,7 @@ function UIDeploy:Update()
 	
 	if (self.pos) then
 		if (level.get_attachment(self.atm_name) == nil) then
-			level.add_attachment(self.atm_name,self.vis)
+			level.add_attachment(self.atm_name,self.vis):set_shader(-1,[[models\selflight_det]],nil)
 		end
 		local atm = level.get_attachment(self.atm_name)
 		if (atm) then
@@ -657,6 +663,9 @@ function UICamfpv:__init() super()
 	self.hud = self.xml:InitStatic("hud",self)
 	self:ApplyScreenRatio(self.hud)
 	
+	self.cursor = self.xml:InitStatic("cursor",self)
+	self:ApplyScreenRatio(self.cursor)
+	
 	self.status = self.xml:InitStatic("status",self)
 	self:ApplyScreenRatio(self.status,false)
 	self.status:SetTextureColor(GetARGB(128,0,0,0))
@@ -680,6 +689,17 @@ function UICamfpv:__init() super()
 	self:ApplyScreenRatio(self.btr_img,true)
 	self:ApplyScreenRatio(self.btr_bar,true)
 	self:ApplyScreenRatio(self.btr_bar:GetProgressStatic(),true)
+	
+	self.compass = self.xml:InitStatic("compass",self)
+	self.compass_bgr = self.xml:InitStatic("compass:compass_bgr",self.compass)
+	self.compass_img = self.xml:InitStatic("compass:compass_img",self.compass)
+	self:ApplyScreenRatio(self.compass_bgr,true)
+	self:ApplyScreenRatio(self.compass_img,true)
+	self.compass_bgr:SetTextureColor(GetARGB(128,0,0,0))
+	self.compass_img:EnableHeading(true)
+	
+	self.zoom_factor = self.xml:InitTextWnd("zoom_factor",self)
+	self:ApplyScreenRatio(self.zoom_factor)
 end
 
 function UICamfpv:__finalize()
@@ -692,6 +712,7 @@ function UICamfpv:Update()
 	if not (self.obj and IsDrone(self.obj)) then
 		return self:Close()
 	end
+	self.car = self.obj:get_car()
 	self.mem = DRONE_MGR:StorageById(self.obj:id())
 	
 	if not (main_hud_shown()) then
@@ -700,14 +721,22 @@ function UICamfpv:Update()
 	end
 	self:Show(true)
 	
-	-- Signal.
+	-- Cursor
+	do
+		local ang = self.car:VisualCamera_GetDesireAngle()
+		local vec = vector2()
+		vec.x = 512 - (512 * clamp((ang.y - self.car:VisualCamera_GetRotYCur()) / self:GetFovHorz(),-1,1))
+		vec.y = 384 - (384 * clamp((ang.x - self.car:VisualCamera_GetRotXCur()) / self:GetFovVert(),-1,1))
+		self.cursor:SetWndPos(vec)
+	end
+	-- Signal
 	do
 		local num = self:SignalPower()
 		self.sig_img:SetProgressPos(self.sig_max - num)
 		self.sig_bar:SetProgressPos(num)
 		self.sig_bar:SetColor(self:SignalColor(num))
 	end
-	-- Battery.
+	-- Battery
 	do
 		local num = clamp(self.mem and self.mem.condition or 1,0,1) * 100
 		local clr = self:BatteryColor(num)
@@ -717,12 +746,21 @@ function UICamfpv:Update()
 		self.btr_img:SetTextureColor(clr)
 		self.btr_bar:SetColor(clr)
 	end
+	-- Compass
+	do
+		self.compass_img:SetHeading(self.car:VisualCamera_GetRotYCur())
+	end
+	-- Zoom
+	do
+		self.zoom_factor:SetText(string.format("%.1fx",self.car:GetZoomFactor()))
+	end
 end
 
 function UICamfpv:SignalPower()
-	local sig = self.obj:binded_object().sig_radius
-	local num = math.min(db.actor:position():distance_to(self.obj:position()),sig)
-	return math.ceil(self.sig_max * (sig - num) / sig)
+	local mgr = self.obj:binded_object()
+	local num = math.min(db.actor:position():distance_to(self.obj:position()),mgr.sig_radius)
+	local sig = mgr.sig_radius * 0.5
+	return math.max(0,math.ceil(self.sig_max * (sig - num) / sig))
 end
 
 function UICamfpv:SignalColor(num)
@@ -761,6 +799,16 @@ function UICamfpv:ApplyScreenRatio(ele,pos)
 	end
 end
 
+function UICamfpv:GetFovHorz()
+	return math.rad(device().fov)
+end
+
+function UICamfpv:GetFovVert()
+	-- Vertical FOV.
+	local dev = device()
+	return math.atan(math.tan(math.rad(dev.fov)) * dev.height / dev.width)
+end
+
 --[[----------------------------------------------------------------------------------------------------
 	Binder
 ------------------------------------------------------------------------------------------------------]]
@@ -776,14 +824,41 @@ function CDroneBinder:__init(obj) super(obj)
 	self.mem = DRONE_MGR:StorageById(self.oid)
 	
 	self.attach_bone = SYS_GetParam(0,self.object:section(),"attach_bone")
+	if (self.attach_bone == "") or (self.attach_bone == "nil") then
+		self.attach_bone = nil
+	end
 	
-	self.power_cons = SYS_GetParam(2,self.object:section(),"power_cons") or 0
+	do
+		local sec = self:ExplosiveSection()
+		local visual = sec and SYS_GetParam(0,sec,"visual")
+		local weight = sec and SYS_GetParam(2,sec,"weight",0)
+		if (visual and weight) then
+			self.attach_info = {}
+			self.attach_info.visual = visual
+			self.attach_info.weight = weight
+		end
+	end
+	
+	do
+		local str = SYS_GetParam(0,self.object:section(),"nv_effect")
+		local tmp = str and str_explode(str,",")
+		local lum = tonumber(tmp and tmp[1])
+		local ppe = tmp and tmp[2]
+		if (lum and ppe) then
+			self.cfg_nvg = {}
+			self.cfg_nvg.lum = lum
+			self.cfg_nvg.ppe = ppe
+		end
+	end
+	
+	local num = SYS_GetParam(2,self.object:section(),"power_time") or 0
+	self.power_cons = (num > 0) and (1 / (num * self:AttachPenaltyScale())) or 0
 	self.power_crit = SYS_GetParam(2,self.object:section(),"power_crit") or 0
 	self.sig_radius = SYS_GetParam(2,self.object:section(),"sig_radius") or 10000
 	
 	self.power_timer = 0
 	self.power_delay = 1000
-		
+	
 	self.fc_delta = nil
 	self.fc_timer = nil
 	self.fc_delay = 100
@@ -817,10 +892,29 @@ function CDroneBinder:update(delta)
 	end
 end
 
-function CDroneBinder:ActorUpdate()
-	if not (self:CanTakeControl()) then
+function CDroneBinder:actor_on_update()
+	if (self:CanTakeControl() == false) then
 		db.actor:detach_vehicle(true)
 		return
+	end
+end
+
+function CDroneBinder:actor_on_attach_vehicle()
+	-- Torch
+	DRONE_MGR:SetTorchNVG(item_device:is_nv_active())
+	local itm = db.actor:item_in_slot(10)
+	item_device.set_nightvision(itm and itm:section(),false)
+	-- Drone
+	DRONE_MGR:SetDroneNVG(self.cfg_nvg,self.mem.nvg_enable)
+end
+
+function CDroneBinder:actor_on_detach_vehicle()
+	-- Drone
+	DRONE_MGR:SetDroneNVG(self.cfg_nvg,false)
+	-- Torch
+	if (DRONE_MGR:GetTorchNVG()) then
+		local itm = db.actor:item_in_slot(10)
+		item_device.set_nightvision(itm and itm:section(),true)
 	end
 end
 
@@ -835,38 +929,26 @@ function CDroneBinder:ActorInRange()
 	return (db.actor:position():distance_to_sqr(self.object:position()) < math.pow(self.sig_radius,2))
 end
 
-function CDroneBinder:PayloadUpdate()
-	local bid = self.attach_bone and self.object:bone_id(self.attach_bone)
-	if (bid and bid ~= 65535) then
-		local k = self:PayloadInfo()
-		if (k) then
-			if (self.object:get_attachment("payload") == nil) then
-				self.object:add_attachment("payload",k.visual):set_parent_bone(bid)
-				self.car:SetFlyWeightAdd(k.weight)
-			end
-		else
-			if (self.object:get_attachment("payload")) then
-				self.object:remove_attachment("payload")
-				self.car:SetFlyWeightAdd(0)
-			end
-		end
-	else
-		URB_TAC:DEBUG("[%s] wrong parameters bone_name:%s bid:%s",self.object:name(),bone_name,bid)
-	end
+function CDroneBinder:AttachPenaltyScale()
+	local num = SYS_GetParam(2,self.object:section(),"inv_weight") or 1
+	assert(num > 0,strformat("[%s] inv_weight invalid.",self.object:section()))
+	return (num) / (num + (self.attach_info and self.attach_info.weight or 0))
 end
 
-function CDroneBinder:PayloadInfo()
-	local sec = self:ExplosiveSection()
-	if (sec) then
-		local visual = SYS_GetParam(0,sec,"visual")
-		local weight = SYS_GetParam(2,sec,"weight",0)
-		if (visual and weight) then
-			local t = {}
-			t.visual = visual
-			t.weight = weight
-			return t
+function CDroneBinder:AttachUpdate()
+	local bid = self.attach_bone and self.object:bone_id(self.attach_bone)
+	if (bid and bid ~= 65535) and (self.attach_info) then
+		if (self.object:get_attachment("payload") == nil) then
+			self.object:add_attachment("payload",self.attach_info.visual):set_parent_bone(bid)
+			self.car:SetFlyWeightAdd(self.attach_info.weight)
+		end
+	else
+		if (self.object:get_attachment("payload")) then
+			self.object:remove_attachment("payload")
+			self.car:SetFlyWeightAdd(0)
 		end
 	end
+	self.car:CCarDrone_SetPowerEfficiency(self:AttachPenaltyScale())
 end
 
 function CDroneBinder:CanTakeControl()
@@ -903,17 +985,12 @@ end
 
 function CDroneBinder:UpdateMapSpot(enable)
 	level.map_remove_all_object_spots(self.oid)
-	if not (enable) then
-		return
-	end
 	
-	if not (self.object:alive() and self.mem.owner_actor) then
-		return
-	end
-	
-	if (level.map_has_object_spot(self.oid,DRONE_MAP_SPOT) == 0) then
-		level.map_add_object_spot(self.oid,DRONE_MAP_SPOT,"")
-		self:RefreshMapSpot()
+	if (enable and self.object:alive() and self.mem.owner_actor) then
+		if (level.map_has_object_spot(self.oid,DRONE_MAP_SPOT) == 0) then
+			level.map_add_object_spot(self.oid,DRONE_MAP_SPOT,"")
+			self:RefreshMapSpot()
+		end
 	end
 end
 
@@ -950,8 +1027,6 @@ function CDroneBinder:net_spawn(se_abstract)
 	self.object:set_callback(callback.net_spawn_after,self.net_spawn_after,self)
 	self:UpdateMapSpot(true)
 	
-	self:PayloadUpdate()
-	
 	SendScriptCallback("drone_on_net",self.object,true)
 	return true
 end
@@ -966,6 +1041,7 @@ function CDroneBinder:net_spawn_after()
 			self.car:StartEngine()
 		end
 	end
+	self:AttachUpdate()
 end
 
 function CDroneBinder:net_destroy()

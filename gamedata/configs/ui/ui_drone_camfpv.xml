@@ -1,10 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <w>
 	<hud x="512" y="384" width="1024" height="768" stretch="1" alignment="c">
-		<texture>ui_crosshair_drone</texture>
+		<texture>ui_drone_hud</texture>
 	</hud>
 	
-	<status x="512" y="128" width="256" height="44" stretch="1" alignment="c">
+	<cursor width="24" height="24" stretch="1" alignment="c">
+		<texture>ui_drone_cursor</texture>
+	</cursor>
+	
+	<status x="512" y="64" width="256" height="44" stretch="1" alignment="c">
 		<texture>ui_drone_hud_dialog</texture>
 		<dialog x="128" y="22" width="182.5" height="28.0" stretch="1" alignment="c">
 			<signal_img x="0" y="0" width="48.0" height="28.0" mode="back" min="0" max="5" snap_no_delay="1">
@@ -31,4 +35,17 @@
 			</battery_bar>
 		</dialog>
 	</status>
+	
+	<compass x="512" y="128">
+		<compass_bgr x="-32" y="0" width="64" height="64" stretch="1">
+			<texture>ui_drone_compass_bgr</texture>
+		</compass_bgr>
+		<compass_img x="-32" y="0" width="64" height="64" stretch="1">
+			<texture>ui_drone_compass_img</texture>
+		</compass_img>
+	</compass>
+	
+	<zoom_factor x="768" y="384" width="64" height="28" stretch="1">
+		<text font="letterica25" align="l" vert_align="c" complex_mode="1"/>
+	</zoom_factor>
 </w>

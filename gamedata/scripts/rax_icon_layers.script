@@ -14,6 +14,7 @@ local iconor = aaa_rax_icon_override_mcm and true or false
 local icon_override = iconor and aaa_rax_icon_override_mcm.icon_override
 local ratio = utils_xml.screen_ratio()
 local icon_layers = {}
+local sorted_names = {}
 
 --functor will be passed cell, obj and section
 --functor should return table with the same info as an item section icon layer. {icon_layer = "tch_upgr_ico", icon_layer_x = 0, icon_layer_y = 1, icon_layer_scale = 0.75}
@@ -23,6 +24,9 @@ function register(name, functor)
 
     if not icon_layers[name] then
         icon_layers[name] = {}
+		sorted_names[#sorted_names + 1] = name
+		table.sort(sorted_names)
+
     end
 
     table.insert(icon_layers[name], functor)
@@ -46,9 +50,9 @@ end
 
 
 --add layers to what gets updated
-local base_update = nil
+local base_update = utils_ui.UICellItem.Update
 
-function utils_ui.UICellItem:Update_UT(obj)
+function utils_ui.UICellItem:Update(obj)
 	obj = obj or (self.ID and level.object_by_id(self.ID))
 	if (self.showcase == 0) and (not obj) then
 		self:ResetToChild()
@@ -67,9 +71,9 @@ function utils_ui.UICellItem:Update_UT(obj)
 end
 
 
-local base_layers = nil
+local base_layers = utils_ui.UICellItem.Add_Layers
 
-function utils_ui.UICellItem:Add_Layers_UT(xml, obj, sec, clsid)
+function utils_ui.UICellItem:Add_Layers(xml, obj, sec, clsid)
 	base_layers(self, xml, obj, sec, clsid)
 
 	local ii = 1
@@ -79,8 +83,8 @@ function utils_ui.UICellItem:Add_Layers_UT(xml, obj, sec, clsid)
 	if (not self.layer) then
 		self.layer = {}
 	end
-	for key, name in pairs(icon_layers) do
-        for _, functor in pairs(name) do
+	for _, name in ipairs(sorted_names) do
+        for __, functor in ipairs(icon_layers[name]) do
 			if (not self.layer[ii]) then
 				if (not xml) then 
 					xml = self:GetXML()
@@ -188,13 +192,4 @@ function add_texture_layer(self,ele, base, sec_m, tbl)
 	ele:SetWndPos(vector2():set( x_s + w_off , y_s + h_off ))
 	ele:SetWndSize(vector2():set( w_s , h_s ))
 	ele:Show(true)
-end
-
-function on_game_start()
-	if (rax_icon_layers == nil) then
-		base_update = utils_ui.UICellItem.Update
-		utils_ui.UICellItem.Update = utils_ui.UICellItem.Update_UT
-		base_layers = utils_ui.UICellItem.Add_Layers
-		utils_ui.UICellItem.Add_Layers = utils_ui.UICellItem.Add_Layers_UT
-	end
 end
