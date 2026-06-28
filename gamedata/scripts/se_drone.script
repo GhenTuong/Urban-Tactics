@@ -12,7 +12,10 @@ function _G.IsDrone(o,c)
 	if not (c) then
 		c = o and o:clsid()
 	end
-	return c and (c == clsid.drone_s) or false
+	if (c and (c == clsid.drone_s)) then
+		return true
+	end
+	return false
 end
 
 --[[----------------------------------------------------------------------------------------------------
