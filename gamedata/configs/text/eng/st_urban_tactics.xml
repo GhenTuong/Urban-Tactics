@@ -26,13 +26,26 @@
 	<string id="drone_pda_info_range">
 		<text>Distance: %.1f meters</text>
 	</string>
-	<string id="drone_pda_info_attach">
-		<text>Attachment: %s</text>
-	</string>
 	<string id="drone_pda_cmd_control">
 		<text>Control</text>
 	</string>
-		
+	
+	<string id="drone_hud_info_zoom">
+		<text>Zoom %.1fx</text>
+	</string>
+	<string id="drone_hud_info_nvg0">
+		<text>NVG off</text>
+	</string>
+	<string id="drone_hud_info_nvg1">
+		<text>NVG on</text>
+	</string>
+	<string id="drone_hud_info_atm0">
+		<text>Payload: Empty</text>
+	</string>
+	<string id="drone_hud_info_atm1">
+		<text>Payload: %s</text>
+	</string>
+	
 	<string id="drone_item_deploy">
 		<text>Deploy</text>
 	</string>

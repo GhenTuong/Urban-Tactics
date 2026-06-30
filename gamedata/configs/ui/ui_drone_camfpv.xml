@@ -45,7 +45,7 @@
 		</compass_img>
 	</compass>
 	
-	<zoom_factor x="768" y="384" width="64" height="28" stretch="1">
-		<text font="letterica25" align="l" vert_align="c" complex_mode="1"/>
-	</zoom_factor>
+	<side_string x="768" y="384" width="256" height="128" stretch="1">
+		<text font="letterica18" align="l" vert_align="t" complex_mode="1"/>
+	</side_string>
 </w>

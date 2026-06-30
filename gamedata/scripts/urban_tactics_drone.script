@@ -110,7 +110,7 @@ function CDroneManager:server_object_on_unregister(se)
 	local sec = se:section_name()
 	if (self.cfg_item_to_object[sec] or self.cfg_object_to_item[sec]) then
 		self.DRONE_MEM[se.id] = nil
-		URB_TAC:DEBUG("DRONE_MEM[%s] Delete",se:name())
+		URB_TAC:DEBUG("DRONE_MEM[%s] Storage Delete",se:name())
 	end
 end
 
@@ -214,7 +214,7 @@ end
 
 function CDroneManager:actor_on_attach_vehicle(obj)
 	if (IsDrone(obj)) then
-		hud_camfpv_active()
+		hud_camfpv_active(obj)
 		self:SetMinimap(false)
 		
 		local mgr = obj:binded_object()
@@ -287,8 +287,10 @@ function CDroneManager:on_key_press(dik)
 				self.nvg_timer = time_global() + 500
 				if (mgr.mem.nvg_enable) then
 					mgr.mem.nvg_enable = nil
+					utils_obj.play_sound([[interface\inv_nv_off]])
 				else
 					mgr.mem.nvg_enable = true
+					utils_obj.play_sound([[interface\inv_nv_start]])
 				end
 				self:SetDroneNVG(mgr.cfg_nvg,mgr.mem.nvg_enable)
 			end
@@ -343,7 +345,7 @@ function drone_icon_layer(cell,obj,sec)
 	if not (DRONE_MGR:ItemToObject(sec)) then
 		return
 	end
-	local mem = self:StorageById(obj:id())
+	local mem = DRONE_MGR:StorageById(obj:id())
 	if not (mem.attach_sec) then
 		return
 	end
@@ -402,7 +404,7 @@ function drone_deploy_func(obj)
 end
 
 function drone_detach_desc(obj)
-	local mem = self:StorageById(obj:id())
+	local mem = DRONE_MGR:StorageById(obj:id())
 	if (mem.attach_sec) then
 		return strformat(GT("drone_item_detach"),ui_item.get_sec_short_name(mem.attach_sec))
 	end
@@ -569,7 +571,8 @@ function UIDeploy:Update()
 	
 	if (self.pos) then
 		if (level.get_attachment(self.atm_name) == nil) then
-			level.add_attachment(self.atm_name,self.vis):set_shader(-1,[[models\selflight_det]],nil)
+			level.add_attachment(self.atm_name,self.vis)
+			--level.add_attachment(self.atm_name,self.vis):set_shader(-1,[[models\selflight_det]],nil)
 		end
 		local atm = level.get_attachment(self.atm_name)
 		if (atm) then
@@ -670,9 +673,9 @@ end
 ------------------------------------------------------------------------------------------------------]]
 HUD_CAMFPV = nil
 
-function hud_camfpv_active()
+function hud_camfpv_active(obj)
 	if (HUD_CAMFPV == nil) then
-		HUD_CAMFPV = UICamfpv()
+		HUD_CAMFPV = UICamfpv(obj)
 		get_hud():AddDialogToRender(HUD_CAMFPV)
 	end
 end
@@ -691,10 +694,14 @@ function hud_camfpv_update()
 end
 
 class "UICamfpv" (CUIScriptWnd)
-function UICamfpv:__init() super()
+function UICamfpv:__init(obj) super(obj)
 	self:SetAutoDelete(true)
 	self.xml = CScriptXmlInit()
 	self.xml:ParseFile("ui_drone_camfpv.xml")
+	
+	self.obj = obj
+	self.car = obj:get_car()
+	self.mgr = obj:binded_object()
 	
 	self.CLR_G = utils_xml.get_color("d_green",true)
 	self.CLR_Y = utils_xml.get_color("pda_yellow",true)
@@ -742,8 +749,13 @@ function UICamfpv:__init() super()
 	self.compass_bgr:SetTextureColor(GetARGB(128,0,0,0))
 	self.compass_img:EnableHeading(true)
 	
-	self.zoom_factor = self.xml:InitTextWnd("zoom_factor",self)
-	self:ApplyScreenRatio(self.zoom_factor)
+	self.side_string_bgr = self.xml:InitTextWnd("side_string",self)
+	self:ApplyScreenRatio(self.side_string_bgr)
+	self.side_string_txt = self.xml:InitTextWnd("side_string",self)
+	self:ApplyScreenRatio(self.side_string_txt)
+	local vec = self.side_string_bgr:GetWndPos()
+	self.side_string_bgr:SetWndPos(vector2():set(vec.x + 2 * self:ScreenRatio(),vec.y + 2))
+	self.side_string_bgr:SetTextColor(GetARGB(255,0,0,0))
 end
 
 function UICamfpv:__finalize()
@@ -751,13 +763,6 @@ end
 
 function UICamfpv:Update()
 	CUIScriptWnd.Update(self)
-	
-	self.obj = db.actor:get_attached_vehicle()
-	if not (self.obj and IsDrone(self.obj)) then
-		return self:Close()
-	end
-	self.car = self.obj:get_car()
-	self.mem = DRONE_MGR:StorageById(self.obj:id())
 	
 	if not (main_hud_shown()) then
 		self:Show(false)
@@ -782,7 +787,7 @@ function UICamfpv:Update()
 	end
 	-- Battery
 	do
-		local num = clamp(self.mem and self.mem.condition or 1,0,1) * 100
+		local num = clamp(self.mgr.mem and self.mgr.mem.condition or 1,0,1) * 100
 		local clr = self:BatteryColor(num)
 		self.btr_txt:SetText(strformat([[%s%]],math.floor(num)))
 		self.btr_bar:SetProgressPos(num)
@@ -794,16 +799,32 @@ function UICamfpv:Update()
 	do
 		self.compass_img:SetHeading(self.car:VisualCamera_GetRotYCur())
 	end
-	-- Zoom
+	-- Infomation
 	do
-		self.zoom_factor:SetText(string.format("%.1fx",self.car:GetZoomFactor()))
+		local txt = ""
+		txt = txt .. string.format(GT("drone_hud_info_zoom"),self.car:GetZoomFactor())
+		if (self.mgr.cfg_nvg) then
+			if (self.mgr.mem.nvg_enable) then
+				txt = txt .. [[\n]] .. GT("drone_hud_info_nvg1")
+			else
+				txt = txt .. [[\n]] .. GT("drone_hud_info_nvg0")
+			end
+		end
+		if (self.mgr.attach_bone) then
+			if (self.mgr.mem.attach_sec) then
+				txt = txt .. [[\n]] .. string.format(GT("drone_hud_info_atm1"),ui_item.get_sec_name(self.mgr.mem.attach_sec))
+			else
+				txt = txt .. [[\n]] .. GT("drone_hud_info_atm0")
+			end
+		end
+		self.side_string_txt:SetText(txt)
+		self.side_string_bgr:SetText(txt)
 	end
 end
 
 function UICamfpv:SignalPower()
-	local mgr = self.obj:binded_object()
-	local num = math.min(db.actor:position():distance_to(self.obj:position()),mgr.sig_radius)
-	local sig = mgr.sig_radius * 0.5
+	local num = math.min(db.actor:position():distance_to(self.obj:position()),self.mgr.sig_radius)
+	local sig = self.mgr.sig_radius * 0.5
 	return math.max(0,math.ceil(self.sig_max * (sig - num) / sig))
 end
 
@@ -848,9 +869,8 @@ function UICamfpv:GetFovHorz()
 end
 
 function UICamfpv:GetFovVert()
-	-- Vertical FOV.
 	local dev = device()
-	return math.atan(math.tan(math.rad(dev.fov)) * dev.height / dev.width)
+	return math.atan(math.tan(math.rad(dev.fov))*dev.height/dev.width)
 end
 
 --[[----------------------------------------------------------------------------------------------------
@@ -1055,15 +1075,21 @@ function CDroneBinder:net_spawn(se_abstract)
 end
 
 function CDroneBinder:net_spawn_after()
-	if (self.mem) then
-		if (self.mem.condition < self.power_crit) then
-			self.car:SetfFuel(0)
-		end
-		if (self.mem.engine_on) then
-			self.mem.engine_on = nil
-			self.car:StartEngine()
+	if (self.mem.condition < self.power_crit) then
+		self.car:SetfFuel(0)
+	end
+	if (self.mem.engine_on) then
+		self.mem.engine_on = nil
+		self.car:StartEngine()
+	end
+	
+	if (self.car:IsScopeEnable()) then
+		if (self.mem.scope_num) then
+			self.car:SetScopeActive(self.mem.scope_num)
+			self.mem.scope_num = nil
 		end
 	end
+	
 	self:AttachUpdate()
 end
 
@@ -1092,8 +1118,9 @@ function CDroneBinder:save(packet)
 	set_save_marker(packet,"save",false,"physics_binder")
 	set_save_marker(packet,"save",true,"physics_binder")
 	
-	if (self.mem) then
-		self.mem.engine_on = self.car:IsActiveEngine()
+	self.mem.engine_on = self.car:IsActiveEngine()
+	if (self.car:IsScopeEnable()) then
+		self.mem.scope_num = self.car:GetScopeActive()
 	end
 end
 
