@@ -42,7 +42,7 @@ function CDroneManager:__init()
 		local ini = ini_file([[items\settings\deploy.ltx]])
 		if (ini:section_exist("drones")) then
 			for idx,val in pairs(utils_data.collect_section(ini,"drones",true)) do
-				if (ini_sys:section_exist(idx) and ini_sys:section_exist(val) and self:IsDroneSection(val)) then
+				if (ini_sys:section_exist(idx) and ini_sys:section_exist(val)) then
 					self.cfg_item_to_object[idx] = val
 					self.cfg_object_to_item[val] = idx
 				else
@@ -1097,10 +1097,10 @@ function CDroneBinder:net_destroy()
 	self:UpdateMapSpot(false)
 	
 	SendScriptCallback("drone_on_net",self.object,false)
-	db.del_obj(self.object)
-	del_object(self.object)
 	self.object:set_callback(callback.death,nil)
 	self.object:set_callback(callback.net_spawn_after,nil)
+	db.del_obj(self.object)
+	del_object(self.object)
 	object_binder.net_destroy(self)
 end
 

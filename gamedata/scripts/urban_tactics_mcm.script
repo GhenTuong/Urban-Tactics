@@ -13,6 +13,8 @@ function on_option_change()
 		urban_tactics_grenade_trajectory.TRAJECTORY_GRD = ui_mcm.get("gt/urban_tactics/trajectory_grd")
 		urban_tactics_grenade_trajectory.TRAJECTORY_LCH = ui_mcm.get("gt/urban_tactics/trajectory_lch")
 		
+		urban_tactics_mine.MINE_IGNORE_ALLIES = ui_mcm.get("gt/urban_tactics/mine_ignore_allies")
+		
 		urban_tactics_ied.KEY_DETONATE = ui_mcm.get("gt/urban_tactics/key_ied_detonate") or urban_tactics_ied.KEY_DETONATE_DEF
 		urban_tactics_drone.KEY_DETONATE = ui_mcm.get("gt/urban_tactics/key_drone_detonate") or urban_tactics_drone.KEY_DETONATE_DEF
 	end
@@ -33,6 +35,10 @@ function on_mcm_load()
 			{id = "trajectory_grd",type = "check",val = 1,def = true},
 			{id = "trajectory_lch",type = "check",val = 1,def = true},
 			{id = "line_1",type = "line"},
+			
+			{id = "mine_name",type = "title",text = "ui_mcm_gt_urban_tactics_mine_name"},
+			{id = "mine_desc",type = "desc",text = "ui_mcm_gt_urban_tactics_mine_desc"},
+			{id = "mine_ignore_allies",type = "check",val = 1,def = urban_tactics_mine.MINE_IGNORE_ALLIES_DEF},
 			
 			{id = "ied_name",type = "title",text = "ui_mcm_gt_urban_tactics_ied_name"},
 			{id = "ied_desc",type = "desc",text = "ui_mcm_gt_urban_tactics_ied_desc"},

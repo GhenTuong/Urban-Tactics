@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="windows-1251"?>
 <string_table>
+	<!-- Mine -->
+	<string id="mine_defuse_tip">
+		<text>Defuse ($$ACTION_USE$$)</text>
+	</string>
+	
 	<!-- IED -->
 	<string id="ied_remote_pickup">
 		<text>Take ($$ACTION_USE$$)</text>
@@ -17,7 +22,6 @@
 	<string id="ied_remote_spot_none">
 		<text>Deselect</text>
 	</string>
-	
 	
 	<!-- Drone -->
 	<string id="drone_use_hint_pickup">

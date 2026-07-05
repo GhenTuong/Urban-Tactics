@@ -152,8 +152,6 @@ kind						= e_ied
 class						= S_EXPLO
 use_action_hint				= ied_remote_pickup
 script_binding				= urban_tactics_ied.init
-on_explode					= urban_tactics_ied.on_explode
-
 cost						= 0
 can_take					= true
 immunities_sect				= planted_mine_immunities
@@ -189,13 +187,14 @@ inv_grid_width				= 1
 inv_grid_height				= 1
 inv_grid_x					= 13
 inv_grid_y					= 46
-cost						= 144
-inv_weight					= 0.01
-attach_angle_offset			= -0.287979, 1.560923, 1.544060
-attach_position_offset		= 0.096910, -0.013594, 0.107925
+cost						= 0
+inv_weight					= 0.2
+attach_angle_offset			= 0.0,0.0,0.0
+attach_position_offset		= 0.0,0.0,0.0
 attach_bone_name			= bip01_r_hand
 auto_attach					= false
 repair_part_bonus			= 0.0
+can_trade					= false
 
 ;----------------------------------------------------------------------------------------------------
 [ied_remote_rpg]:rpg_new_blow,m_ied_remote_item_base

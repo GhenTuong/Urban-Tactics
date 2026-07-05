@@ -50,17 +50,6 @@
 		%c[d_purple] • %c[ui_gray_2] Explosion delay: %c[ui_gray_1]~3.5 seconds</text>
 	</string>
 	
-	<string id="st_tool_tripwire_f1">
-		<text>Tripwire installation kit (F1 grenade)</text>
-	</string>
-	<string id="st_tool_tripwire_f1_desc">
-		<text>An improvised explosive trap kit made of tent pegs, wooden stakes, wire, and a hand grenade. Any human or mutant passing through the wire will trigger the attached grenade. The grenade has been modified to explode almost instantly, therefore it's no longer suitable for throwing.\n \n
-		%c[d_purple] • %c[ui_gray_2] Explosive: %c[ui_gray_1]F1 grenade\n
-		%c[d_purple] • %c[ui_gray_2] Wire length: %c[ui_gray_1]2 m.\n
-		%c[d_purple] • %c[ui_gray_2] Explosion delay: %c[ui_gray_1]~1 seconds\n
-		%c[d_purple] • %c[ui_gray_2] Can be defused and recovered.</text>
-	</string>
-	
 	<string id="st_grenade_explosive_charge">
 		<text>Explosive charge</text>
 	</string>
@@ -72,6 +61,31 @@
 		%c[d_purple] • %c[ui_gray_2] Fragments' radius: %c[ui_gray_1]20 m\n
 		%c[d_purple] • %c[ui_gray_2] Av. number of fragments: %c[ui_gray_1]100 (shrapnel)\n
 		%c[d_purple] • %c[ui_gray_2] Cumbersome. Reduce throwing distance.</text>
+	</string>
+	
+<!------------------------------------------------------------------------------------------------------
+	Mine
+------------------------------------------------------------------------------------------------------->
+	<string id="tool_tripwire_f1_name">
+		<text>Tripwire installation kit (F1 grenade)</text>
+	</string>
+	<string id="tool_tripwire_f1_desc">
+		<text>An improvised explosive trap kit made of tent pegs, wooden stakes, wire, and a hand grenade. Any human or mutant passing through the wire will trigger the attached grenade.\n \n
+		%c[d_purple] • %c[ui_gray_2] Explosive: %c[ui_gray_1]F1 grenade\n
+		%c[d_purple] • %c[ui_gray_2] Wire length: %c[ui_gray_1]2m.\n
+		%c[d_purple] • %c[ui_gray_2] Explosion delay: %c[ui_gray_1]~2.5s\n
+		%c[d_purple] • %c[ui_gray_2] Can be defused and recovered.</text>
+	</string>
+	
+	<string id="tool_tripwire_rgd5_name">
+		<text>Tripwire installation kit (RGD-5 grenade)</text>
+	</string>
+	<string id="tool_tripwire_rgd5_desc">
+		<text>An improvised explosive trap kit made of tent pegs, wooden stakes, wire, and a hand grenade. Any human or mutant passing through the wire will trigger the attached grenade.\n \n
+		%c[d_purple] • %c[ui_gray_2] Explosive: %c[ui_gray_1]RGD-5 grenade\n
+		%c[d_purple] • %c[ui_gray_2] Wire length: %c[ui_gray_1]2m.\n
+		%c[d_purple] • %c[ui_gray_2] Explosion delay: %c[ui_gray_1]~2.5s\n
+		%c[d_purple] • %c[ui_gray_2] Can be defused and recovered.</text>
 	</string>
 	
 <!------------------------------------------------------------------------------------------------------

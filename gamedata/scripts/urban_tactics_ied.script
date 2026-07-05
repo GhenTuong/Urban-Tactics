@@ -121,7 +121,7 @@ function CIedManager:Create(prs,owner_actor)
 		local se = alife_create(sec,pos,vid,gid)
 		se.angle = vector():set(ang.y,ang.x,ang.z)
 		
-		local mem = IED_MGR:StorageById(se.id)
+		local mem = self:StorageById(se.id)
 		if (fix) then
 			mem.fix = fix
 			mem.pos = {x = pos.x,y = pos.y,z = pos.z}

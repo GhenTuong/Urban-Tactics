@@ -34,15 +34,36 @@
 	<string id="ui_mcm_gt_urban_tactics_trajectory_lch">
 		<text>Show launcher trajectory</text>
 	</string>
-
+	
+<!------------------------------------------------------>
+	<string id="ui_mcm_gt_urban_tactics_mine_name">
+		<text>Tripwire trap</text>
+	</string>
+	<string id="ui_mcm_gt_urban_tactics_mine_desc">
+<text>Note:
+\n• Deployed tripwire traps will disappear when you leave the current map.
+\n• Deployed tripwire traps can be recovered.
+</text>
+	</string>
+	
+	<string id="ui_mcm_gt_urban_tactics_mine_ignore_allies">
+		<text>Tripwire trap ignore allies (Default: Enable)</text>
+	</string>
+	<string id="ui_mcm_gt_urban_tactics_mine_ignore_allies_desc">
+<text>
+\nEnable: Player's tripwire traps will not be triggered by nor do damage to allies and companions.
+\nDisable: Disable this option.
+</text>
+	</string>
+	
 <!------------------------------------------------------>
 	<string id="ui_mcm_gt_urban_tactics_ied_name">
 		<text>Improvised explosive device</text>
 	</string>
 	<string id="ui_mcm_gt_urban_tactics_ied_desc">
 <text>Note:
-\n• Deployed IEDs and tripwire traps will disappear when you leave the current map.
-\n• Deployed IEDs and tripwire traps can be recovered.
+\n• Deployed IEDs will disappear when you leave the current map.
+\n• Deployed IEDs can be recovered.
 \n• Use a cellphone to detonate deployed IEDs.
 </text>
 	</string>
