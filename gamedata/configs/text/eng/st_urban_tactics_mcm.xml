@@ -43,6 +43,12 @@
 <text>Note:
 \n• Deployed tripwire traps will disappear when you leave the current map.
 \n• Deployed tripwire traps can be recovered.
+\n
+\nDeploy UI:
+\n	Mouse 1: Deploy.
+\n	Mouse 2: Cancel.
+\n	Lean left: Rotate left.
+\n	Lean right: Rotate right.
 </text>
 	</string>
 	
@@ -65,11 +71,20 @@
 \n• Deployed IEDs will disappear when you leave the current map.
 \n• Deployed IEDs can be recovered.
 \n• Use a cellphone to detonate deployed IEDs.
+\n
+\nDeploy UI:
+\n	Mouse 1: Deploy.
+\n	Mouse 2: Cancel.
+\n
+\nUsage:
+\n	Deploy IEDs.
+\n	Open PDA, right click on the IED icons, choose Select or Deselect.
+\n	While PDA is opened, press [Detonate selected IEDs] to make selected IEDs explode.
 </text>
 	</string>
 	
 	<string id="ui_mcm_gt_urban_tactics_key_ied_detonate">
-		<text>Detonate selected IEDs</text>
+		<text>Detonate selected IEDs (Default: G)</text>
 	</string>
 	
 <!------------------------------------------------------>
@@ -81,13 +96,17 @@
 \n• Deployed drones will disappear when you leave the current map.
 \n• Hostile stalkers will shoot drones when flying close.
 \n• Mutants will be alert when drones flying close.
-\n• When drones being shotdown, attached explosive won't detonate and will disappear.
+\n• When drones being shotdown, attached explosive will not detonate and will disappear.
+\n
+\nDeploy:
+\n	Mouse 1: Deploy.
+\n	Mouse 2: Cancel.
 \n
 \nMovement:
-\n	Key [Sprint] -> Fly up.
-\n	Key [Crouch] -> Fly down.
-\n	Key [Forward] -> Fly forward.
-\n	Key [Backward] -> Fly backward.
+\n	Key [Sprint] -> Ascent.
+\n	Key [Crouch] -> Descent.
+\n	Key [Forward] -> Forward.
+\n	Key [Backward] -> Backward.
 \n	Key [Strafe left] -> Strafe left.
 \n	Key [Strafe right] -> Strafe right.
 \n	Key [Lean left] -> Steer left.
@@ -95,10 +114,10 @@
 \n
 \nAction:
 \n	Key [Use] -> Stop controlling drone.
-\n	Key [Zoom] -> Camera zoom, supports both hold and toggle modes.
+\n	Mouse wheel -> Camera zoom.
 </text>
 	</string>
 	<string id="ui_mcm_gt_urban_tactics_key_drone_detonate">
-		<text>Detonate attached explosive</text>
+		<text>Detonate attached explosive (Default: G)</text>
 	</string>
 </string_table>

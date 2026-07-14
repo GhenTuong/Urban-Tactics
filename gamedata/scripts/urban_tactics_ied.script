@@ -55,6 +55,7 @@ function CIedManager:__init()
 	RegisterScriptCallback("map_spot_menu_add_property",self)
 	RegisterScriptCallback("map_spot_menu_property_clicked",self)
 	RegisterScriptCallback("actor_on_item_before_pickup",self)
+	RegisterScriptCallback("anomaly_on_before_activate",self)
 	
 	RegisterScriptCallback("GUI_on_show",self)
 	RegisterScriptCallback("GUI_on_hide",self)
@@ -169,6 +170,12 @@ function CIedManager:map_spot_menu_property_clicked(property_ui,oid,lvl,sec)
 	end
 end
 
+function CIedManager:anomaly_on_before_activate(ano,obj,flags)
+	if (db.ied_objects[obj:id()]) then
+		flags.ret_value = false
+	end
+end
+
 function CIedManager:actor_on_item_before_pickup(obj,flags)
 	if (self:ObjectToItem(obj:section())) then
 		CreateTimeEvent(AC_ID,"pickup",0,self.PickupTimeEvent,self,obj:id())
@@ -189,23 +196,20 @@ end
 
 function CIedManager:on_key_press(dik)
 	if (dik == KEY_DETONATE) then
-		if (db.actor:active_slot() == 8 and db.actor:active_item()) then
-			self:Explode()
+		if (db.actor:active_slot() == 8) then
+			local pda = db.actor:item_in_slot(8)
+			local itm = db.actor:active_item()
+			if (pda and itm and (pda:id() == itm:id())) then
+				self:Explode()
+			end
 		end
 	end
 end
 
 function CIedManager:Explode()
 	for oid,obj in pairs(db.ied_objects) do
-		if (obj:condition() > 0 and IED_MGR:StorageById(oid).owner_actor) then
-			local h = hit()
-			h.type		= hit.fire_wound
-			h.power		= 100
-			h.impulse	= 0.0
-			h.direction = vector():set(0,1,0)
-			h.draftsman = db.actor
-			obj:hit(h)
-			obj:set_condition(0)
+		if (obj:binded_object():CanActorControl()) then
+			obj:binded_object():Explode()
 		end
 	end
 end
@@ -451,12 +455,56 @@ function CIedBinder:__init(obj) super(obj)
 	db.storage[self.object:id()] = {}
 	self.oid = self.object:id()
 	self.mem = IED_MGR:StorageById(self.oid)
+	
+	self.sig_radius = SYS_GetParam(2,self.object:section(),"sig_radius") or 10000
 end
 
 function CIedBinder:update(delta)
 	object_binder.update(self,delta)
 end
 
+function CIedBinder:Explode()
+	if (self.object:condition() > 0) then
+		if (self.object:cast_Explosive():CurrentParentID() == 65535) and (self:OwnerActor()) then
+			self.object:cast_Explosive():SetCurrentParentID(AC_ID)
+		end
+		self.object:cast_Explosive():Explode()
+		self.object:set_condition(0)
+	end
+end
+
+function CIedBinder:OwnerActor()
+	return self.mem.owner_actor and true or false
+end
+
+function CIedBinder:ActorInRange()
+	return (self.object:position():distance_to_sqr(db.actor:position()) < math.pow(self.sig_radius,2))
+end
+
+function CIedBinder:JammerInRange()
+	return false
+end
+
+function CIedBinder:CanActorControl()
+	if not (self:OwnerActor()) then
+		return false
+	end
+	if not (self:ActorInRange()) then
+		return false
+	end
+	if (self:JammerInRange()) then
+		return false
+	end
+	return true
+end
+
+function CIedBinder:ActorTrigger()
+	if (self:CanActorControl()) then
+		self:Explode()
+	end
+end
+
+----------------------------------------------------------------------------------------------------
 function CIedBinder:GetStoragePosition()
 	if (self.mem and self.mem.pos) then
 		local x = tonumber(self.mem.pos.x)
@@ -481,7 +529,7 @@ function CIedBinder:UpdateMapSpot(enable)
 		return
 	end
 	
-	if not (self.object:condition() > 0 and self.mem.owner_actor) then
+	if not (self.object:condition() > 0 and self:OwnerActor()) then
 		return
 	end
 	
@@ -536,29 +584,28 @@ function CIedBinder:net_spawn(se_abstract)
 end
 
 function CIedBinder:net_spawn_after()
-	if (self.mem) then
-		if (self.mem.fix) then
-			if (self.object:get_physics_shell():get_element_by_order(0):is_fixed() == false) then
-				self.object:get_physics_shell():get_element_by_order(0):fix()
-			end
-			local pos = self:GetStoragePosition()
-			if (pos) then
-				self.object:force_set_position(pos)
-			end
-			local ang = self:GetStorageRotation()
-			if (ang) then
-				self.object:force_set_rotation(ang)
-			end
+	if (self.mem.fix) then
+		if (self.object:get_physics_shell():get_element_by_order(0):is_fixed() == false) then
+			self.object:get_physics_shell():get_element_by_order(0):fix()
+		end
+		local pos = self:GetStoragePosition()
+		if (pos) then
+			self.object:force_set_position(pos)
+		end
+		local ang = self:GetStorageRotation()
+		if (ang) then
+			self.object:force_set_rotation(ang)
 		end
 	end
 end
 
 function CIedBinder:net_destroy()
 	self:UpdateMapSpot(false)
-	
+	self.object:set_callback(callback.hit,nil)
+	self.object:set_callback(callback.use_object,nil)
+	self.object:set_callback(callback.net_spawn_after,nil)
 	db.del_obj(self.object)
 	del_object(self.object)
-	self.object:set_callback(callback.net_spawn_after,nil)
 	object_binder.net_destroy(self)
 end
 

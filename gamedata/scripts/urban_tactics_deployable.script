@@ -1,0 +1,531 @@
+--[[----------------------------------------------------------------------------------------------------
+	GhenTuong
+	Discord: GhenTuong#1278
+	Twitter: https://twitter.com/GhenTuong
+	To do:
+------------------------------------------------------------------------------------------------------]]
+local GT = game.translate_string
+
+db.deployable_objects = {}
+
+function add_object(obj)
+	db.deployable_objects[obj:id()] = obj
+end
+
+function del_object(obj)
+	db.deployable_objects[obj:id()] = nil
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Manager
+------------------------------------------------------------------------------------------------------]]
+_G.DEPLOYABLE_MGR = nil
+
+class "CDeployableManager"
+function CDeployableManager:__init()
+	self.INI = ini_file([[misc\deployable_manager.ltx]])
+	
+	self.OBJECT_MEM = {}
+	self.STRUCT_MEM = {}
+	self.DEPLOY_MEM = {}
+	
+	self.cfg_deployable_section = {}
+	for idx,val in pairs(utils_data.collect_section(self.INI,"cfg_deployable_section",true)) do
+		self.cfg_deployable_section[idx] = true
+	end
+	
+	self.rzw_power = self.INI:r_float_ex("settings","rzw_power")
+	assert(self.rzw_power,"Parameters missing")
+	self.rzw_delay = self.INI:r_float_ex("settings","rzw_delay")
+	assert(self.rzw_delay,"Parameters missing")
+	
+	self.rzw_timer = 0
+	
+	RegisterScriptCallback("save_state",self)
+	RegisterScriptCallback("load_state",self)
+	RegisterScriptCallback("server_object_on_register",self)
+	RegisterScriptCallback("server_object_on_unregister",self)
+	RegisterScriptCallback("actor_on_first_update",self)
+	
+	RegisterScriptCallback("server_entity_on_register",self)
+	RegisterScriptCallback("smart_terrain_on_update",self)
+	RegisterScriptCallback("on_key_release",self)
+end
+
+function CDeployableManager:save_state(m_data)
+	m_data.GT_DEPLOYABLE_OBJECT_MEM = self.OBJECT_MEM
+	m_data.GT_DEPLOYABLE_STRUCT_MEM = self.STRUCT_MEM
+	m_data.GT_DEPLOYABLE_DEPLOY_MEM = self.DEPLOY_MEM
+end
+
+function CDeployableManager:load_state(m_data)
+	self.OBJECT_MEM = m_data.GT_DEPLOYABLE_OBJECT_MEM or {}
+	self.STRUCT_MEM = m_data.GT_DEPLOYABLE_STRUCT_MEM or {}
+	self.DEPLOY_MEM = m_data.GT_DEPLOYABLE_DEPLOY_MEM or {}
+	
+	for idx,var in pairs(self.structs) do
+		if (self.STRUCT_MEM[idx] == nil) then
+			self.STRUCT_MEM[idx] = {}
+		end
+		var:AssignMemory(self.STRUCT_MEM[idx])
+	end
+end
+
+function CDeployableManager:server_object_on_register(se)
+	if (self.cfg_deployable_section[se:section_name()]) then
+		if (self.OBJECT_MEM[se.id] == nil) then
+			self.OBJECT_MEM[se.id] = {}
+			URB_TAC:DEBUG("DEPLOYABLE_MGR.OBJECT_MEM[%s] Storage Create",se:name())
+		end
+	end
+end
+
+function CDeployableManager:server_object_on_unregister(se)
+	if (self.cfg_deployable_section[se:section_name()]) then
+		local mem = self.OBJECT_MEM[se.id]
+		-- If the object belong to a struct, inform the struct about the destroy_bones of the object.
+		if (mem.idx) then
+			self:GetStruct(mem.idx):Destroy()
+		end
+		self.OBJECT_MEM[se.id] = nil
+		URB_TAC:DEBUG("DEPLOYABLE_MGR.OBJECT_MEM[%s] Storage Delete",se:name())
+	end
+end
+
+function CDeployableManager:actor_on_first_update()
+	-- Remove the object if the struct no longer exists.
+	for oid,mem in pairs(self.OBJECT_MEM) do
+		if (mem.idx and (self:GetStruct(mem.idx) == nil)) then
+			alife_release(alife_object(oid))
+		end
+	end
+end
+
+function CDeployableManager:server_entity_on_register(smt,tag)
+	if not (tag == "se_smart_terrain") then
+		return
+	end
+	smt.deployable_sec = smt.ini:r_string_ex("smart_terrain","deployable")
+end
+
+function CDeployableManager:smart_terrain_on_update(smt)
+	if (smt.deployable_sec) then
+		self.deploys[smt.deployable_sec]:Update()
+	end
+end
+
+function CDeployableManager:StorageById(oid)
+	return oid and self.OBJECT_MEM[oid]
+end
+
+function CDeployableManager:on_key_release(dik)
+	if (dik == DIK_keys.DIK_NUMPAD9) then
+		local pos = device().cam_pos
+		local dir = device().cam_dir
+		local ray = ray_pick(pos,dir,5,2,db.actor)
+		if (ray:query()) then
+			local vec = vector():mad(pos,dir,ray:get_distance())
+			local se = alife_create("deployable_razorwire",vec,db.actor:level_vertex_id(),db.actor:game_vertex_id())
+			se.angle = vector():set(0,dir:getH(),0)
+		end
+	end
+end
+
+function CDeployableManager:Init()
+	self.structs = {}
+	self.INI:section_for_each(function(section)
+		if (string.find(section,"struct@")) then
+			self.structs[section] = CStruct(section)
+		end
+	end)
+	
+	self.deploys = {}
+	self.INI:section_for_each(function(section)
+		if (string.find(section,"deploy@")) then
+			self.deploys[section] = CDeploy(section)
+		end
+	end)
+end
+
+function CDeployableManager:GetStruct(idx)
+	return self.structs[idx]
+end
+
+function CDeployableManager:GetDeploy(idx)
+	return self.deploys[idx]
+end
+
+function CDeployableManager:Update()
+	for idx,var in pairs(self.VAR) do
+		var:Update()
+	end
+end
+
+function CDeployableManager:RZW_Contact(obj,who)
+	if (who:id() == AC_ID) and (not IsMoveState("mcAnyMove")) then
+		return
+	end
+	
+	if not (self.rzw_timer < time_global()) then
+		return
+	end
+	self.rzw_timer = time_global() + self.rzw_delay
+	
+	local h = hit()
+	h.power		= self.rzw_power
+	h.type		= hit.fire_wound
+	h.draftsman	= obj
+	h.weapon_id	= obj:id()
+	h.direction	= vec_sub(who:center(),obj:center()):normalize()
+	h.impulse	= 10
+	h:bone("bip01_spine1")
+	who:hit(h)
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Main
+------------------------------------------------------------------------------------------------------]]
+class "CStruct"
+function CStruct:__init(section)
+	self.idx = section
+	self.mem = nil
+	self.sec = DEPLOYABLE_MGR.INI:r_string_ex(section,"sec_name")
+	local str = DEPLOYABLE_MGR.INI:r_string_ex(section,"location")
+	self.lvl = URB_TAC:read_lvl(str)
+	self.pos = URB_TAC:read_pos(str)
+	self.ang = URB_TAC:read_ang(str)
+	if not (self.sec and DEPLOYABLE_MGR.cfg_deployable_section[self.sec] and self.lvl and self.pos and self.ang) then
+		assert(nil,strformat("[%s] %s | lvl:%s pos:%s ang:%s",self.idx,self.sec,self.lvl,self.pos,self.ang))
+	end
+	
+end
+
+function CStruct:AssignMemory(mem)
+	self.mem = mem
+end
+
+function CStruct:GetPos()
+	return self.pos
+end
+
+function CStruct:GetAng()
+	return self.ang
+end
+
+function CStruct:Create()
+	if (self.mem.oid) then
+		return
+	end
+	
+	local smt = URB_TAC:smart_by_level(self.lvl)
+	local vid = smt.m_level_vertex_id
+	local gid = smt.m_game_vertex_id
+	local se = alife_create(self.sec,self.pos,vid,gid)
+	se.angle = vector():set(self.ang.y,self.ang.x,self.ang.z)
+	
+	self.mem.oid = se.id
+	DEPLOYABLE_MGR:StorageById(se.id).idx = self.idx
+end
+
+function CStruct:Remove()
+	if (self.mem.oid) then
+		alife_release(alife_object(self.mem.oid))
+	end
+end
+
+function CStruct:GetOid()
+	return self.mem.oid
+end
+
+function CStruct:Destroy()
+	if (self.mem.oid) then
+		self.mem.oid = nil
+	end
+end
+
+----------------------------------------------------------------------------------------------------
+class "CDeploy"
+function CDeploy:__init(section)
+	self.idx = section
+	self.active = DEPLOYABLE_MGR.INI:r_string_to_condlist(section,"active","true")
+	self.manpow = DEPLOYABLE_MGR.INI:r_float_ex(section,"manpow",1)
+	self.struct = {}
+	
+	local tmp = string.gsub(self.idx,"deploy@","")
+	for idx,var in pairs(DEPLOYABLE_MGR.structs) do
+		if (string.find(idx,tmp)) then
+			self.struct[#self.struct+1] = idx
+		end
+	end
+end
+
+function CDeploy:Update()
+	if not (xr_logic.pick_section_from_condlist(nil,nil,self.active) == "true") then
+		return
+	end
+	
+	local idx = self:GetStructRebuild()
+	while (idx) do
+		DEPLOYABLE_MGR:GetStruct(idx):Create()
+		idx = self:GetStructRebuild()
+	end
+end
+
+function CDeploy:GetStructRebuild()
+	for _,idx in ipairs(self.struct) do
+		if (DEPLOYABLE_MGR:GetStruct(idx):GetOid() == nil) then
+			return idx
+		end
+	end
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Binder
+------------------------------------------------------------------------------------------------------]]
+DEPLOYABLE_TAG_DEF = 0
+DEPLOYABLE_TAG_RZW = 1
+DEPLOYABLE_TAG_CVR = 2
+
+function init(obj)
+	obj:bind_object(CDeployableBinder(obj))
+end
+
+class "CDeployableBinder" (object_binder)
+function CDeployableBinder:__init(obj) super(obj)
+	db.storage[self.object:id()] = {}
+	self.oid = self.object:id()
+	self.psh = self.object:cast_PhysicsShellHolder()
+	self.des = self.object:get_destroyable_physics_object()
+	self.mem = DEPLOYABLE_MGR:StorageById(self.oid)
+	
+	self.tag = DEPLOYABLE_TAG_DEF
+	local tag = SYS_GetParam(0,obj:section(),"deployable_type")
+	if (tag == "razor") then
+		self.tag = DEPLOYABLE_TAG_RZW
+	end
+	if (tag == "cover") then
+		self.tag = DEPLOYABLE_TAG_CVR
+	end
+	
+	if (self.tag == DEPLOYABLE_TAG_RZW) then
+		local str = SYS_GetParam(0,self.object:section(),"rzw_razor_bones")
+		if (str and str ~= "" and str ~= "nil") then
+			self.rzw_razor_bones = {}
+			for _,sec in ipairs(str_explode(str,",")) do
+				local bid = self.object:bone_id(sec)
+				assert(bid ~= 65535,strformat("[%s] Wrong parameters: %s %s",obj:section(),str,sec))
+				self.rzw_razor_bones[bid] = true
+			end
+		else
+			self.rzw_razor_bones = nil
+		end
+	end
+	
+	if (self.tag == DEPLOYABLE_TAG_CVR) then
+		self.condition = 1
+		self.build_min = SYS_GetParam(2,self.object:section(),"build_min") or 0
+		self.build_max = SYS_GetParam(2,self.object:section(),"build_max") or 0
+		
+		self.build_bones = {}
+		for key,val in pairs(utils_data.collect_section(ini_sys,self.object:section(),true)) do
+			if (string.find(key,"build_bones@")) then
+				local sec = string.gsub(key,"build_bones@","")
+				local bid = self.object:bone_id(sec)
+				assert(bid ~= 65535,strformat("[%s] Wrong parameters: %s = %s",self.object:section(),key,val))
+				assert(self.build_bones[bid] == nil,strformat("[%s] Duplicated: %s = %s",self.object:section(),key,val))
+				self.build_bones[bid] = tonumber(val) or 0
+			end
+		end
+		
+		self.destroy_bones = {}
+		for key,val in pairs(utils_data.collect_section(ini_sys,self.object:section(),true)) do
+			if (string.find(key,"destroy_bones@")) then
+				local sec = string.gsub(key,"destroy_bones@","")
+				local bid = self.object:bone_id(sec)
+				assert(bid ~= 65535,strformat("[%s] Wrong parameters: %s = %s",self.object:section(),key,val))
+				assert(self.destroy_bones[bid] == nil,strformat("[%s] Duplicated: %s = %s",self.object:section(),key,val))
+				self.destroy_bones[bid] = tonumber(val) or 0
+			end
+		end
+		
+		self.mem.building = true
+	end
+	
+	--[[
+	self.fc_delta = nil
+	self.fc_timer = nil
+	self.fc_delay = 100
+	self.object:set_fastcall(self.update,self)
+	--]]
+end
+
+function CDeployableBinder:reinit()
+	object_binder.reinit(self)
+	if (db.storage[self.object:id()] == nil) then
+		db.storage[self.object:id()] = {}
+	end
+	self.st = db.storage[self.object:id()]
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Update
+------------------------------------------------------------------------------------------------------]]
+function CDeployableBinder:update(delta)
+	object_binder.update(self,delta)
+end
+
+function CDeployableBinder:UpdateCoverVisual(flag)
+	if (self.des:Destroyed()) then
+		return
+	end
+	
+	if (self.mem.building) then
+		for bid,num in pairs(self.build_bones) do
+			if (self.mem.build_cnt and self.mem.build_cnt >= num) then
+				self.object:set_bone_visible(bid,true,true)
+				self.psh:set_contact_collision_bone(bid,true,true)
+			else
+				self.object:set_bone_visible(bid,false,true)
+				self.psh:set_contact_collision_bone(bid,false,true)
+			end
+		end
+		if (self.mem.build_cnt and self.mem.build_cnt >= self.build_max) then
+			self.mem.building = nil
+		end
+	end
+	
+	if (self.mem.building == nil) then
+		for bid,num in pairs(self.destroy_bones) do
+			if (self.condition >= num) then
+				self.object:set_bone_visible(bid,true,true)
+				self.psh:set_contact_collision_bone(bid,true,true)
+			else
+				self.object:set_bone_visible(bid,false,true)
+				self.psh:set_contact_collision_bone(bid,false,true)
+			end
+		end
+	end
+end
+
+function CDeployableBinder:before_hit_callback(obj,shit,bid)
+	if (self.tag == DEPLOYABLE_TAG_RZW) then
+		local wpn = URB_TAC:object_by_id(shit.weapon_id)
+		URB_TAC:DEBUG("[%s] before_hit_callback pwr:%s bid:%s wpn:%s",obj:name(),shit.power,bid,wpn and wpn:section())
+		if not (wpn and SYS_GetParam(1,wpn:section(),"deployable_demolisher")) then
+			shit.power = 0
+		end
+	end
+	
+	if (self.tag == DEPLOYABLE_TAG_CVR) then
+		if (self.mem.building) then
+			local wpn = URB_TAC:object_by_id(shit.weapon_id)
+			if (wpn and SYS_GetParam(1,wpn:section(),"deployable_entrenching_tool")) then
+				self.mem.build_cnt = math.min((self.mem.build_cnt or self.build_min) + 1,self.build_max)
+				self:UpdateCoverVisual(true)
+				URB_TAC:DEBUG("[%s] before_hit_callback build:%s/%s",obj:name(),self.mem.build_cnt,self.build_max)
+			end
+		end
+	end
+	
+	return true
+end
+
+function CDeployableBinder:hit_callback(obj,pwr,dir,who,bid)
+	self.condition = math.max(0,self.des:GetHealth() - pwr)
+end
+
+function CDeployableBinder:contact_collision_callback(obj,obj_bid,who,who_bid)
+	if (self.tag == DEPLOYABLE_TAG_RZW) then
+		if (self.rzw_razor_bones == nil or self.rzw_razor_bones[obj_bid]) then
+			if (who:id() == AC_ID and who:alive()) then
+				DEPLOYABLE_MGR:RZW_Contact(obj,who)
+			end
+		end
+	end
+	
+	if (who:id() ~= AC_ID) then
+		URB_TAC:DEBUG("[%s] who: %s %s",obj:name(),who:name(),who:section())
+	end
+	return true
+end
+
+----------------------------------------------------------------------------------------------------
+function CDeployableBinder:reload(section)
+	object_binder.reload(self,section)
+end
+
+function CDeployableBinder:net_spawn(se_abstract)
+	if not (object_binder.net_spawn(self,se_abstract)) then
+		return false
+	end
+	db.add_obj(self.object)
+	add_object(self.object)
+	
+	self.object:set_callback(callback.hit,self.hit_callback,self)
+	self.object:set_callback(callback.net_spawn_after,self.net_spawn_after,self)
+	self.des:set_script_before_hit_callback(self.before_hit_callback,self)
+	
+	if (self.mem.health) then
+		self.des:SetHealth(self.mem.health)
+		self.mem.health = nil
+	end
+	
+	if (self.tag == DEPLOYABLE_TAG_RZW) then
+		self.psh:set_script_contact_collision_callback(self.contact_collision_callback,self)
+	end
+	
+	return true
+end
+
+function CDeployableBinder:net_spawn_after()
+	--self.psh:activate_contact_collision_callback(true)
+	
+	if (self.mem.idx) then
+		local var = DEPLOYABLE_MGR:GetStruct(self.mem.idx)
+		self.object:force_set_position(var:GetPos())
+		self.object:force_set_rotation(var:GetAng())
+	end
+	if (self.tag == DEPLOYABLE_TAG_CVR) then
+		self.object:set_bone_visible(0,true,true)
+		self:UpdateCoverVisual(false)
+	end
+end
+
+function CDeployableBinder:net_destroy()
+	db.del_obj(self.object)
+	del_object(self.object)
+	
+	self.object:set_callback(callback.hit,nil)
+	self.object:set_callback(callback.net_spawn_after,nil)
+	self.des:set_script_before_hit_callback(nil)
+	self.psh:set_script_contact_collision_callback(nil)
+	object_binder.net_destroy(self)
+end
+
+function CDeployableBinder:net_save_relevant()
+	return true
+end
+
+function CDeployableBinder:save(packet)
+	object_binder.save(self,packet)
+	set_save_marker(packet,"save",false,"physics_binder")
+	set_save_marker(packet,"save",true,"physics_binder")
+	
+	do
+		self.mem.health = self.des:GetHealth()
+	end
+end
+
+function CDeployableBinder:load(packet)
+	object_binder.load(self,packet)
+	set_save_marker(packet,"load",false,"physics_binder")
+	set_save_marker(packet,"load",true,"physics_binder")
+end
+
+--[[----------------------------------------------------------------------------------------------------
+	Registers
+------------------------------------------------------------------------------------------------------]]
+function on_game_start()
+	_G.DEPLOYABLE_MGR = CDeployableManager()
+	_G.DEPLOYABLE_MGR:Init()
+end

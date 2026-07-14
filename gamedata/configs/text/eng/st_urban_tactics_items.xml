@@ -152,7 +152,8 @@
 		%c[d_purple] • %c[ui_gray_2] Full battery flight time: %c[ui_gray_1]~40 minutes\n
 		%c[d_purple] • %c[ui_gray_2] Battery critical threshold: %c[ui_gray_1]5%\n
 		%c[d_green] • %c[ui_gray_2] Can attach remote-controlled explosives (consume more power)\n
-		%c[ui_gray_3]CAMERA:\n
+		\n
+		%c[ui_gray_3]Camera:\n
 		%c[d_purple] • %c[ui_gray_2] Horizontal guidance: %c[d_orange]None\n
 		%c[d_purple] • %c[ui_gray_2] Vertical guidance: %c[d_orange]-50°/+10°\n
 		%c[d_purple] • %c[ui_gray_2] Camera magnification: %c[d_orange]1.0x-1.5x\n
@@ -172,11 +173,28 @@
 		%c[d_purple] • %c[ui_gray_2] Operational range: %c[ui_gray_1]~400 meters\n
 		%c[d_purple] • %c[ui_gray_2] Full battery flight time: %c[ui_gray_1]~30 minutes\n
 		%c[d_purple] • %c[ui_gray_2] Battery critical threshold: %c[ui_gray_1]5%\n
-		%c[ui_gray_3]CAMERA:\n
+		%c[ui_gray_3]Camera:\n
 		%c[d_purple] • %c[ui_gray_2] Horizontal guidance: %c[d_orange]±90°\n
 		%c[d_purple] • %c[ui_gray_2] Vertical guidance: %c[d_orange]-85°/+20°\n
 		%c[d_purple] • %c[ui_gray_2] Camera magnification: %c[d_orange]1.0x-6.0x\n
 		</text>
 	</string>
 	
+<!------------------------------------------------------------------------------------------------------
+	Tools
+------------------------------------------------------------------------------------------------------->
+	<string id="wpn_shovel_mpl50_name">
+		<text>MPL-50 entrenching tool</text>
+	</string>
+	<string id="wpn_shovel_mpl50_desc">
+		<text>The MPL-50 is a compact military entrenching tool issued to soldiers for digging fighting positions, constructing battlefield obstacles, and countless field tasks. The sharpened steel blade can be used as an improvised melee weapon in desperate situations.
+\nWhile lacking the convenience of modern folding shovels, the MPL-50 remains a practical choice thanks to its low cost, widespread availability, and proven reliability in the field.\n \n
+		%c[ui_gray_1]PROPERTIES:\n
+		%c[d_cyan] • %c[ui_gray_2] melee weapon\n
+		%c[d_cyan] • %c[ui_gray_2] has greater reach compared to knives\n
+		\n
+		%c[ui_gray_3]Entrenching tool:\n
+		%c[d_purple] • %c[ui_gray_2] can build battlefield structures\n
+		</text>
+	</string>
 </string_table>

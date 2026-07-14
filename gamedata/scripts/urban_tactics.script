@@ -64,12 +64,15 @@ function CUrbanTacticsManager:on_key_release(dik)
 		give_object_to_actor("grenade_explosive_charge",5)
 		
 		give_object_to_actor("tool_tripwire_f1",2)
+		give_object_to_actor("tool_tripwire_rgd5",2)
 		
 		give_object_to_actor("ied_remote_exp",2)
 		give_object_to_actor("ied_remote_rpg",2)
 		
 		give_object_to_actor("drone_fpv_freestyle",1)
 		give_object_to_actor("drone_dji_phantom_2",1)
+		
+		give_object_to_actor("wpn_shovel_mpl50",1)
 	end
 end
 

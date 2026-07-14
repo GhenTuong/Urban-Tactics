@@ -1,0 +1,48 @@
+[disable]
+linear_factor			= 0.5
+angular_factor			= 0.5
+
+[collide_parts]
+small_object
+
+[destroyed]
+;dynamics\deployables\part\razorwire_bar_0
+dynamics\deployables\part\razorwire_bar_1
+dynamics\deployables\part\razorwire_bar_2
+dynamics\deployables\part\razorwire_bar_3
+
+dynamics\deployables\part\razorwire_wire_1
+dynamics\deployables\part\razorwire_wire_2
+dynamics\deployables\part\razorwire_wire_3
+
+[autoremove_parts]
+time					= 60
+
+[particles]
+destroy_particles		= destroy_fx\destroy_wood_00
+
+[particle_bones]
+link					= 0.0,0.5,0.0
+
+[sound]
+break_sound				= material\wood\wood_big_hard_1
+
+[immunities]
+burn_immunity			= 0.0
+strike_immunity			= 0.0
+shock_immunity			= 0.0
+wound_immunity			= 0.0
+radiation_immunity		= 0.0
+telepatic_immunity		= 0.0
+chemical_burn_immunity	= 0.0
+explosion_immunity		= 0.5
+fire_wound_immunity		= 0.0
+
+[impulse_transition_to_parts]
+random_min				= 5.0 ; величина случайно направленного импульса пропорционально массе нового объекта
+random_hit_imp			= 2.0 ; величина случайно направленного импульса пропорционально разрушающему хиту
+;ref_bone                          ; кость из по которой определяется скорость для частей у который связь не задана, по умолчанию рут
+imp_transition_factor	= 1.0 ; фактор с которым прикладывается хит по исходному объекту ко всем частям
+lv_transition_factor	= 0.5 ; коэффициент передачи линейной скорости
+av_transition_factor	= 0.5 ; коэффициент передачи угловой скорости
+

@@ -54,6 +54,7 @@ function CMineManager:__init()
 	RegisterScriptCallback("actor_on_first_update",self)
 	RegisterScriptCallback("actor_on_item_use",self)
 	RegisterScriptCallback("npc_on_before_hit",self)
+	RegisterScriptCallback("anomaly_on_before_activate",self)
 	
 	RegisterScriptCallback("GUI_on_show",self)
 	RegisterScriptCallback("GUI_on_hide",self)
@@ -186,6 +187,12 @@ function CMineManager:npc_on_before_hit(npc,shit,bone_id,flags)
 		return
 	end
 	if (db.mine_objects[shit.weapon_id]:binded_object():ValidateTarget(npc) == false) then
+		flags.ret_value = false
+	end
+end
+
+function CMineManager:anomaly_on_before_activate(ano,obj,flags)
+	if (db.mine_objects[obj:id()]) then
 		flags.ret_value = false
 	end
 end
@@ -389,8 +396,8 @@ function UIDeploy:Deploy()
 end
 
 function UIDeploy:Rotate(klockwise)
-	local num = klockwise and -10 or 10
-	self.rotation = clamp(self.rotation + num,-90,90)
+	local num = klockwise and -1 or 1
+	self.rotation = clamp(self.rotation + num,-2,2)
 end
 
 function UIDeploy:GetAttachmentVisual(obj)
@@ -400,14 +407,16 @@ end
 
 function UIDeploy:GetDeployPosition()
 	local pos = device().cam_pos
-	local dir = device().cam_dir
-	if (dir:getP() > 0) then
+	local dir = vector():set(device().cam_dir.x,0,device().cam_dir.z):normalize()
+	local ray = ray_pick(pos,dir,self.dist_def,2,db.actor)
+	if (ray:query()) then
 		return
 	end
-	local ray = ray_pick(pos,dir,self.dist_max,2,db.actor)
-	local vec = ray:query() and vector():mad(pos,dir,ray:get_distance())
-	if (self:ValidatePosition(vec)) then
-		return vec
+	local vec = vector():mad(pos,dir,self.dist_def)
+	local tmp = pos.y - db.actor:position().y + 0.5
+	local ray = ray_pick(vec,self.vec_dw,tmp,2,db.actor)
+	if (ray:query()) then
+		return vector():mad(vec,self.vec_dw,ray:get_distance())
 	end
 end
 
@@ -417,7 +426,7 @@ function UIDeploy:GetDeployRotation()
 	end
 	local src = vector():set(self.pos)
 	local tmp = vector():set(src):add(vector():set(0,0.5,0))
-	local dir = vector():setHP(device().cam_dir:getH() + math.rad(self.rotation),0):normalize()
+	local dir = vector():setHP(device().cam_dir:getH() + math.rad(self.rotation * 45),0):normalize()
 	local ray = ray_pick(tmp,dir,2,3,db.actor)
 	if (ray:query()) then
 		return
@@ -471,16 +480,16 @@ function UIDeploy:OnKeyPress(dik)
 	if (dik == DIK_keys.MOUSE_2) then
 		return self:Cancel()
 	end
-	if (dik == DIK_keys.DIK_R) then
+	if (dik == bind_to_dik(key_bindings.kL_LOOKOUT)) then
 		return self:Rotate(false)
 	end
-	if (dik == DIK_keys.DIK_T) then
+	if (dik == bind_to_dik(key_bindings.kR_LOOKOUT)) then
 		return self:Rotate(true)
 	end
 end
 
 --[[----------------------------------------------------------------------------------------------------
-	Mine
+	Binder
 ------------------------------------------------------------------------------------------------------]]
 function init(obj)
 	obj:bind_object(CMineBinder(obj))
@@ -497,6 +506,18 @@ function CMineBinder:__init(obj) super(obj)
 	
 	self.defuse_use = SYS_GetParam(0,self.object:section(),"mine_defuse_use") == "true" and true or false
 	self.defuse_tip = SYS_GetParam(0,self.object:section(),"mine_defuse_tip")
+	
+	do
+		self.hide_bones = {}
+		local str = SYS_GetParam(0,self.object:section(),"mine_hide_bones")
+		if (str and str ~= "" and str ~= "nil") then
+			for _,sec in ipairs(str_explode(str,",")) do
+				local bid = self.object:bone_id(sec)
+				assert(bid ~= 65535,strformat("[%s] Wrong parameters: %s %s",obj:section(),str,sec))
+				self.hide_bones[bid] = true
+			end
+		end
+	end
 	
 	self.fc_delta = nil
 	self.fc_timer = nil
@@ -573,11 +594,11 @@ end
 
 function CMineBinder:Trigger(who)
 	if (self.mem.explode_timer == nil) then
-		if (self.mem.initiator_id == nil) then
+		if (self.mem.current_parent_id == nil) then
 			if (who and IsStalker(who)) then
-				self.mem.initiator_id = who:id()
+				self.mem.current_parent_id = who:id()
 			elseif (self:OwnerActor()) then
-				self.mem.initiator_id = AC_ID
+				self.mem.current_parent_id = AC_ID
 			end
 		end
 		
@@ -591,9 +612,9 @@ end
 
 function CMineBinder:Explode()
 	if (self.object:condition() > 0) then
-		local who = URB_TAC:object_by_id(self.mem.initiator_id)
+		local who = URB_TAC:object_by_id(self.mem.current_parent_id)
 		if (who and IsStalker(who)) then
-			self.object:cast_Explosive():SetInitiator(who:id())
+			self.object:cast_Explosive():SetCurrentParentID(who:id())
 		end
 		self.object:cast_Explosive():Explode()
 		self.object:set_condition(0)
@@ -609,13 +630,6 @@ function CMineBinder:HideBones()
 	end
 end
 
-function CMineBinder:use_callback(obj,who)
-	if (obj:position():distance_to_sqr(who:position()) > math.pow(2,2)) then
-		return
-	end
-	CreateTimeEvent(obj:id(),"pickup",0,pick_up_time_event,obj:id())
-end
-
 function CMineBinder:hit_callback(obj,power,dir,who,bone_id)
 	if (who and IsStalker(who)) then
 		self:Trigger(who)
@@ -626,7 +640,10 @@ function CMineBinder:contact_collision_callback(obj,obj_bid,who,who_bid)
 	if (self:ValidateTarget(who)) then
 		self:Trigger()
 	end
-	return (self.hide_bones[obj_bid]) and true or false
+	if (self.hide_bones[obj_bid]) then
+		return false
+	end
+	return true
 end
 
 ----------------------------------------------------------------------------------------------------
@@ -640,24 +657,8 @@ function CMineBinder:net_spawn(se_abstract)
 	end
 	db.add_obj(self.object)
 	add_object(self.object)
-	self.object:set_callback(callback.hit,self.hit_callback,self)
-	self.object:set_callback(callback.use_object,self.use_callback,self)
 	self.object:set_callback(callback.net_spawn_after,self.net_spawn_after,self)
 	self.psh:set_script_contact_collision_callback(self.contact_collision_callback,self)
-	
-	do
-		self.hide_bones = {}
-		local str = SYS_GetParam(0,self.object:section(),"mine_hide_bones")
-		local tmp = str and str_explode(str,",")
-		if (tmp) then
-			for _,sec in pairs(tmp) do
-				local bid = self.object:bone_id(sec)
-				if (bid ~= 65535) then
-					self.hide_bones[bid] = true
-				end
-			end
-		end
-	end
 	
 	return true
 end
@@ -692,7 +693,6 @@ end
 
 function CMineBinder:net_destroy()
 	self.object:set_callback(callback.hit,nil)
-	self.object:set_callback(callback.use_object,nil)
 	self.object:set_callback(callback.net_spawn_after,nil)
 	self.psh:set_script_contact_collision_callback(nil)
 	db.del_obj(self.object)

@@ -12,6 +12,14 @@ _G.AddScriptCallback("drone_on_death")
 local DRONE_MAP_SPOT = "drone_map_spot"
 local DRONE_NVG_PPE = 555242 --URB
 
+local ANOMALY_DESTROY_DRONE = {
+	[hit.burn]			= true,
+	[hit.shock]			= true,
+	[hit.strike]		= true,
+	[hit.chemical_burn]	= true,
+	[hit.light_burn]	= true,
+}
+
 KEY_DETONATE_DEF = DIK_keys.DIK_J
 KEY_DETONATE = KEY_DETONATE_DEF
 
@@ -393,7 +401,7 @@ function CDroneManager:SetDroneNVG(cfg,state)
 end
 
 --[[----------------------------------------------------------------------------------------------------
-	Item
+	Misc
 ------------------------------------------------------------------------------------------------------]]
 function drone_deploy_desc(obj)
 	return GT("drone_item_deploy")
@@ -431,6 +439,12 @@ function deploy_condition()
 end
 
 function on_before_hit(obj,shit,bone_id)
+	local wpn = URB_TAC:object_by_id(shit.weapon_id)
+	if (IsAnomaly(wpn)) then
+		if (ANOMALY_DESTROY_DRONE[shit.type]) then
+			obj:binded_object():Destroy()
+		end
+	end
 	return true
 end
 
@@ -876,6 +890,9 @@ end
 --[[----------------------------------------------------------------------------------------------------
 	CDroneBinder
 ------------------------------------------------------------------------------------------------------]]
+
+----------------------------------------------------------------------------------------------------
+
 function init(obj)
 	obj:bind_object(CDroneBinder(obj))
 end
@@ -1019,13 +1036,19 @@ function CDroneBinder:ExplosiveDetonate(who)
 	if (sec and self.object:alive()) then
 		self.mem.attach_sec = nil
 		self.car:LoadExplosiveSection(sec)
-		self.car:SetInitiator(who and who:id() or self.oid)
+		self.object:cast_Explosive():SetCurrentParentID(who and who:id() or self.oid)
 		self.object:kill(who)
 	end
 end
 
 function CDroneBinder:ExplosiveSection()
 	return IED_MGR:ItemToObject(self.mem.attach_sec)
+end
+
+function CDroneBinder:Destroy()
+	if (self.object:alive()) then
+		self.object:kill(who)
+	end
 end
 
 function CDroneBinder:UpdateMapSpot(enable)

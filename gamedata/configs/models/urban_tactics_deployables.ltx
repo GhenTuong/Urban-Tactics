@@ -1,0 +1,150 @@
+[m_deployable_base]
+GroupControlSection			= spawn_group
+class						= O_DSTR_S
+remove_time					= 0
+script_binding				= urban_tactics_deployable.init
+fixed_bones					= link
+is_ai_obstacle				= true
+ignore_collision			= map,obj
+
+;----------------------------------------------------------------------------------------------------
+;	Deployables
+;----------------------------------------------------------------------------------------------------
+[deployable_razorwire]:m_deployable_base
+visual						= dynamics\deployables\razorwire.ogf
+deployable_type				= razor
+rzw_razor_bones				= wire_1,wire_2,wire_3
+
+[deployable_sandbags]:m_deployable_base
+visual						= dynamics\deployables\sandbags.ogf
+deployable_type				= cover
+
+build_min					= 0
+build_max					= 12
+
+build_bones@bag_11			= 2
+build_bones@bag_12			= 2
+build_bones@bag_13			= 4
+build_bones@bag_21			= 4
+build_bones@bag_22			= 6
+build_bones@bag_23			= 6
+build_bones@bag_31			= 8
+build_bones@bag_32			= 8
+build_bones@bag_33			= 10
+build_bones@bag_41			= 10
+build_bones@bag_42			= 12
+
+destroy_bones@bag_11		= 0.0
+destroy_bones@bag_12		= 0.0
+destroy_bones@bag_13		= 0.0
+destroy_bones@bag_21		= 0.2
+destroy_bones@bag_22		= 0.1
+destroy_bones@bag_23		= 0.0
+destroy_bones@bag_31		= 0.6
+destroy_bones@bag_32		= 0.4
+destroy_bones@bag_33		= 0.3
+destroy_bones@bag_41		= 0.7
+destroy_bones@bag_42		= 0.5
+
+![grenade_explosive_charge]
+deployable_demolisher		= true
+
+![wpn_rpg7_missile]
+deployable_demolisher		= true
+
+;----------------------------------------------------------------------------------------------------
+;	Items
+;----------------------------------------------------------------------------------------------------
+[wpn_shovel_mpl50]:wpn_knife,wpn_axe_sounds
+visual						= dynamics\weapons\tools\shovel_mpl50.ogf
+position					= 0.0,0.0,0.0
+orientation					= 0,180,0
+fire_point					= 0.0,0.133,0.161
+fire_point2					= 0,0,0
+strap_bone0					= bip01_spine2
+strap_bone1					= bip01_spine1
+strap_position				= 0,0,0
+strap_orientation			= 0,0,0
+hud							= wpn_shovel_mpl50_hud
+
+inv_grid_height				= 1
+inv_grid_width				= 3
+inv_grid_x					= 25
+inv_grid_y					= 81
+inv_name					= wpn_shovel_mpl50_name
+inv_name_short				= wpn_shovel_mpl50_name
+description					= wpn_shovel_mpl50_desc
+inv_weight					= 0.8
+cost						= 8000
+
+upgr_icon_x					= 300
+upgr_icon_y					= 1850
+upgr_icon_width				= 200
+upgr_icon_height			= 100
+
+slot						= 1
+animation_slot				= 5
+ef_main_weapon_type			= 1
+ef_weapon_type				= 4
+hand_dependence				= 1
+single_handed				= 1
+
+spash1_dist					= 2.1
+spash1_radius				= 0.7
+splash1_direction			= 0.0,-0.3,1.0
+splash1_hits_count			= 3
+splash1_pervictim_hcount	= 1
+
+spash2_dist					= 1.7
+spash2_radius				= 0.5
+splash2_direction			= 0.0,0.0,1.0
+splash2_hits_count			= 2
+splash_hit_divide_factor	= 0.75
+
+hit_impulse					= 50
+hit_power					= 1.0
+hit_power_2					= 0.2
+hit_type					= wound
+fire_distance				= 3.5
+bullet_speed				= 1000
+rpm							= 1000
+scope_zoom_factor			= 60
+
+snd_on_take					= other
+can_be_lowered				= true
+weapon_lower_speed			= 0.2
+
+deployable_entrenching_tool	= true
+
+[wpn_shovel_mpl50_hud]:wpn_knife_hud
+item_visual					= dynamics\weapons\tools\shovel_mpl50_hud.ogf
+
+item_position				= 0, 0, 0
+item_orientation			= 0, 0, 0
+
+hands_position				= -0.001529, -0.168825, 0.198185
+hands_position_16x9			= -0.001529, -0.168825, 0.198185
+hands_orientation			= -0.5, 1, 10
+hands_orientation_16x9		= -0.5, 1, 10
+
+lowered_hud_offset_pos		= 0.019067, -0.358889, 0.069541
+lowered_hud_offset_rot		= 0.019067, -0.358889, 0.069541
+lowered_hud_offset_pos_16x9	= -0.892271, -0.538412, -0.263826
+lowered_hud_offset_rot_16x9	= -0.892271, -0.538412, -0.263826
+
+anm_attack					= urb_tac_shovel_light_hands
+anm_attack2					= urb_tac_shovel_light_hands_alt1
+anm_hide					= urb_tac_shovel_holster_hands
+anm_idle					= urb_tac_shovel_idle_hands
+anm_idle_aim				= urb_tac_shovel_idle_hands
+anm_idle_moving				= urb_tac_shovel_walk_hands
+anm_idle_sprint				= urb_tac_shovel_sprint_hands
+anm_show					= urb_tac_shovel_draw_hands
+anm_show_empty				= urb_tac_shovel_draw_hands
+anm_bore					= urb_tac_shovel_inspect_hands
+
+shell_bone					= wpn_body
+shell_point					= 0, 0, 0
+fire_bone					= knife
+fire_point					= 0.004500, 0.062500, -0.178499
+freelook_z_offset_mul		= 0.9
